@@ -6,15 +6,16 @@ when to stop searching based on statistical confidence bounds.
 """
 
 import numpy as np
-from collections import deque
 from typing import Tuple, List, Optional, Dict, Any
 import heapq
 from .statistics import (
     estimate_exceedance_probability,
     compute_confidence_bound,
     adaptive_alpha,
-    fit_weibull
+    CircularBuffer,
+    WeibullCache
 )
+from .utils.profiling import Profiler
 
 
 class DESKNNSearcher:
@@ -41,6 +42,16 @@ class DESKNNSearcher:
         Whether to use Weibull distribution fit for probability estimation.
     distance_metric : str, default='euclidean'
         Distance metric: 'euclidean', 'cosine', or 'manhattan'.
+    batch_size : int, default=512
+        Number of distance computations to perform per vectorized batch.
+    crit1_mode : str, default="alpha_over_k"
+        Criterion-1 threshold mode: "alpha_over_k" or "alpha".
+    crit3_gap_ratio : float, default=0.5
+        Criterion-3 gap ratio threshold.
+    crit3_gap_mult : float, default=10.0
+        Criterion-3 gap multiplier applied to k (gap > crit3_gap_mult * k).
+    weibull_refresh_every : int, default=1
+        Refresh Weibull fit every N stop checks.
     random_state : int or None, default=None
         Random seed for reproducibility.
     """
@@ -54,7 +65,12 @@ class DESKNNSearcher:
         adaptive_alpha: bool = True,
         use_weibull: bool = True,
         distance_metric: str = 'euclidean',
-        random_state: Optional[int] = None
+        random_state: Optional[int] = None,
+        batch_size: int = 512,
+        crit1_mode: str = "alpha_over_k",
+        crit3_gap_ratio: float = 0.5,
+        crit3_gap_mult: float = 10.0,
+        weibull_refresh_every: int = 1
     ):
         self.X = np.asarray(X, dtype=np.float32)
         self.n, self.d = self.X.shape
@@ -65,6 +81,11 @@ class DESKNNSearcher:
         self.use_weibull = use_weibull
         self.distance_metric = distance_metric
         self.random_state = random_state
+        self.batch_size = max(1, int(batch_size))
+        self.crit1_mode = crit1_mode
+        self.crit3_gap_ratio = crit3_gap_ratio
+        self.crit3_gap_mult = crit3_gap_mult
+        self.weibull_refresh_every = max(1, int(weibull_refresh_every))
 
         # Precompute for efficiency
         if distance_metric == 'cosine':
@@ -86,7 +107,12 @@ class DESKNNSearcher:
         q: np.ndarray,
         k: int,
         return_distances: bool = True,
-        return_stats: bool = False
+        return_stats: bool = False,
+        stop_check_every: int = 1,
+        crit1_mode: Optional[str] = None,
+        crit3_gap_ratio: Optional[float] = None,
+        crit3_gap_mult: Optional[float] = None,
+        weibull_refresh_every: Optional[int] = None
     ) -> Tuple[np.ndarray, np.ndarray, int] | Tuple[np.ndarray, int] | Tuple[np.ndarray, np.ndarray, int, Dict] | Tuple[np.ndarray, int, Dict]:
         """
         Find k nearest neighbors with dynamic early stopping.
@@ -101,6 +127,18 @@ class DESKNNSearcher:
             Whether to return distances.
         return_stats : bool, default=False
             Whether to return detailed statistics.
+        stop_check_every : int, default=1
+            Only evaluate early-stopping criteria every N distance computations.
+        crit1_mode : str, optional
+            Criterion-1 threshold mode: "alpha_over_k" or "alpha".
+            Defaults to the instance setting.
+        crit3_gap_ratio : float, optional
+            Criterion-3 gap ratio threshold. Defaults to the instance setting.
+        crit3_gap_mult : float, optional
+            Criterion-3 gap multiplier applied to k (gap > crit3_gap_mult * k).
+            Defaults to the instance setting.
+        weibull_refresh_every : int, optional
+            Refresh Weibull fit every N stop checks. Defaults to the instance setting.
 
         Returns
         -------
@@ -114,6 +152,29 @@ class DESKNNSearcher:
             Detailed statistics if return_stats=True.
         """
         q = np.asarray(q, dtype=np.float32)
+        stop_check_every = int(stop_check_every)
+        if stop_check_every < 1:
+            raise ValueError("stop_check_every must be >= 1")
+        if crit1_mode is None:
+            crit1_mode = self.crit1_mode
+        if crit3_gap_ratio is None:
+            crit3_gap_ratio = self.crit3_gap_ratio
+        if crit3_gap_mult is None:
+            crit3_gap_mult = self.crit3_gap_mult
+        if weibull_refresh_every is None:
+            weibull_refresh_every = self.weibull_refresh_every
+        weibull_refresh_every = int(weibull_refresh_every)
+        if crit1_mode not in {"alpha_over_k", "alpha"}:
+            raise ValueError("crit1_mode must be 'alpha_over_k' or 'alpha'")
+        if crit3_gap_ratio <= 0:
+            raise ValueError("crit3_gap_ratio must be > 0")
+        if crit3_gap_mult <= 0:
+            raise ValueError("crit3_gap_mult must be > 0")
+        if weibull_refresh_every < 1:
+            raise ValueError("weibull_refresh_every must be >= 1")
+
+        profiler = Profiler.from_env()
+        profiling_enabled = profiler.enabled
 
         # Determine minimum samples
         min_samples = self.min_samples if self.min_samples is not None else max(2 * k, 50)
@@ -124,10 +185,14 @@ class DESKNNSearcher:
         d_k = np.inf
 
         # Statistics tracking
-        distances_window = deque(maxlen=self.window_size)
+        distances_window = CircularBuffer(self.window_size)
         update_history = []
         dist_count = 0
         last_update = 0
+        stop_check_count = 0
+        weibull_cache = None
+        if self.use_weibull and weibull_refresh_every > 1:
+            weibull_cache = WeibullCache()
 
         # For detailed stats
         all_computed_distances = [] if return_stats else None
@@ -137,52 +202,119 @@ class DESKNNSearcher:
         indices = self.rng.permutation(self.n)
 
         # Precompute query-specific values for distance computation
+        q_normalized = None
         if self.distance_metric == 'cosine':
             q_norm = np.linalg.norm(q)
             q_normalized = q / (q_norm + 1e-10)
 
         # Main search loop
         stopped_early = False
-        for i, idx in enumerate(indices):
-            # Compute distance
-            d = self._compute_distance(q, idx)
-            dist_count += 1
-
-            if return_stats:
-                all_computed_distances.append(d)
-
-            # Update k-NN heap
-            if len(heap) < k:
-                heapq.heappush(heap, (-d, idx))
-                if len(heap) == k:
-                    d_k = -heap[0][0]
-            elif d < d_k:
-                heapq.heapreplace(heap, (-d, idx))
-                d_k = -heap[0][0]
-                last_update = i
-                update_history.append(i)
-
-            # Track distance statistics
-            distances_window.append(d)
-
-            # Check early stopping criterion
-            if i >= min_samples:
-                should_stop, criteria = self._should_stop(
-                    distances_window=list(distances_window),
-                    d_k=d_k,
-                    update_history=update_history,
-                    current_idx=i,
-                    last_update=last_update,
-                    k=k,
-                    remaining=self.n - i - 1
+        n = self.n
+        batch_size = min(self.batch_size, n)
+        heap_push = heapq.heappush
+        heap_replace = heapq.heapreplace
+        window_add = distances_window.add
+        for batch_start in range(0, n, batch_size):
+            batch_indices = indices[batch_start:batch_start + batch_size]
+            if profiling_enabled:
+                with profiler.time("distance_compute"):
+                    batch_distances = self._compute_distances_batch(
+                        q,
+                        batch_indices,
+                        q_normalized=q_normalized
+                    )
+            else:
+                batch_distances = self._compute_distances_batch(
+                    q,
+                    batch_indices,
+                    q_normalized=q_normalized
                 )
 
-                if return_stats:
-                    stopping_criteria_history.append(criteria)
+            for offset, idx in enumerate(batch_indices):
+                d = batch_distances[offset]
+                i = batch_start + offset
+                dist_count += 1
 
-                if should_stop:
-                    stopped_early = True
-                    break
+                if return_stats:
+                    all_computed_distances.append(d)
+
+                # Update k-NN heap
+                if len(heap) < k:
+                    if profiling_enabled:
+                        with profiler.time("heap_update"):
+                            heap_push(heap, (-d, idx))
+                            if len(heap) == k:
+                                d_k = -heap[0][0]
+                    else:
+                        heap_push(heap, (-d, idx))
+                        if len(heap) == k:
+                            d_k = -heap[0][0]
+                elif d < d_k:
+                    if profiling_enabled:
+                        with profiler.time("heap_update"):
+                            heap_replace(heap, (-d, idx))
+                            d_k = -heap[0][0]
+                            last_update = i
+                            update_history.append(i)
+                    else:
+                        heap_replace(heap, (-d, idx))
+                        d_k = -heap[0][0]
+                        last_update = i
+                        update_history.append(i)
+
+                # Track distance statistics
+                window_add(d)
+
+                # Check early stopping criterion
+                if i >= min_samples and (dist_count % stop_check_every == 0):
+                    stop_check_count += 1
+                    if profiling_enabled:
+                        with profiler.time("window_to_list"):
+                            window_values = distances_window.get_all()
+                        with profiler.time("stop_criteria"):
+                            should_stop, criteria = self._should_stop(
+                                distances_window=window_values,
+                                d_k=d_k,
+                                update_history=update_history,
+                                current_idx=i,
+                                last_update=last_update,
+                                k=k,
+                                remaining=n - i - 1,
+                                profiler=profiler,
+                                crit1_mode=crit1_mode,
+                                crit3_gap_ratio=crit3_gap_ratio,
+                                crit3_gap_mult=crit3_gap_mult,
+                                weibull_cache=weibull_cache,
+                                weibull_refresh_every=weibull_refresh_every,
+                                stop_check_count=stop_check_count
+                            )
+                    else:
+                        should_stop, criteria = self._should_stop(
+                            distances_window=distances_window.get_all(),
+                            d_k=d_k,
+                            update_history=update_history,
+                            current_idx=i,
+                            last_update=last_update,
+                            k=k,
+                            remaining=n - i - 1,
+                            profiler=None,
+                            crit1_mode=crit1_mode,
+                            crit3_gap_ratio=crit3_gap_ratio,
+                            crit3_gap_mult=crit3_gap_mult,
+                            weibull_cache=weibull_cache,
+                            weibull_refresh_every=weibull_refresh_every,
+                            stop_check_count=stop_check_count
+                        )
+
+                    if return_stats:
+                        stopping_criteria_history.append(criteria)
+
+                    if should_stop:
+                        stopped_early = True
+                        break
+
+            if stopped_early:
+                break
 
         # Extract results (sort by distance)
         heap_items = [(-d, idx) for d, idx in heap]
@@ -203,6 +335,15 @@ class DESKNNSearcher:
                 'all_distances': all_computed_distances,
                 'criteria_history': stopping_criteria_history
             }
+            if profiling_enabled:
+                stats['profile'] = profiler.summary()
+
+        if profiling_enabled:
+            self.last_profile = profiler.summary()
+            self.last_profile_text = profiler.format_summary()
+        else:
+            self.last_profile = None
+            self.last_profile_text = None
 
         if return_distances and return_stats:
             return neighbors, distances, dist_count, stats
@@ -260,7 +401,14 @@ class DESKNNSearcher:
         current_idx: int,
         last_update: int,
         k: int,
-        remaining: int
+        remaining: int,
+        profiler: Optional[Profiler] = None,
+        crit1_mode: str = "alpha_over_k",
+        crit3_gap_ratio: float = 0.5,
+        crit3_gap_mult: float = 10.0,
+        weibull_cache: Optional[WeibullCache] = None,
+        weibull_refresh_every: int = 1,
+        stop_check_count: int = -1
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Determine whether to stop searching based on statistical criteria.
@@ -272,20 +420,25 @@ class DESKNNSearcher:
             Dictionary with criterion values for analysis.
         """
         # Get current alpha (possibly adaptive)
+        distances = np.asarray(distances_window, dtype=np.float64)
         if self.use_adaptive_alpha:
             current_alpha = adaptive_alpha(
-                distances_window, d_k, self.alpha
+                distances, d_k, self.alpha
             )
         else:
             current_alpha = self.alpha
 
         # Criterion 1: Estimate probability remaining points enter k-NN
         p_remain, expected_entrants = estimate_exceedance_probability(
-            distances=distances_window,
+            distances=distances,
             d_k=d_k,
             remaining=remaining,
             alpha=current_alpha,
-            use_weibull=self.use_weibull
+            use_weibull=self.use_weibull,
+            profiler=profiler,
+            weibull_cache=weibull_cache,
+            weibull_refresh_every=weibull_refresh_every,
+            check_step=stop_check_count
         )
 
         # Criterion 2: Confidence from update pattern
@@ -300,9 +453,13 @@ class DESKNNSearcher:
         gap_ratio = gap / (current_idx + 1)
 
         # Evaluate criteria
-        crit1 = p_remain < current_alpha / k
+        if crit1_mode == "alpha":
+            crit1_threshold = current_alpha
+        else:
+            crit1_threshold = current_alpha / k
+        crit1 = p_remain < crit1_threshold
         crit2 = conf > 1 - current_alpha
-        crit3 = (gap_ratio > 0.5) and (gap > 10 * k)
+        crit3 = (gap_ratio > crit3_gap_ratio) and (gap > crit3_gap_mult * k)
 
         # Combined decision: require at least 2 criteria
         should_stop = (crit1 and crit2) or (crit1 and crit3) or (crit2 and crit3)
@@ -314,6 +471,9 @@ class DESKNNSearcher:
             'gap_ratio': gap_ratio,
             'gap': gap,
             'alpha': current_alpha,
+            'crit1_threshold': crit1_threshold,
+            'crit3_gap_ratio': crit3_gap_ratio,
+            'crit3_gap_threshold': crit3_gap_mult * k,
             'crit1': crit1,
             'crit2': crit2,
             'crit3': crit3
@@ -363,7 +523,7 @@ class DESKNNSearcher:
             def _single_query(q):
                 return self.query(q, k)
 
-            results = Parallel(n_jobs=n_jobs)(
+            results = Parallel(n_jobs=n_jobs, prefer="threads")(
                 delayed(_single_query)(q) for q in queries
             )
 
@@ -374,7 +534,12 @@ class DESKNNSearcher:
 
         return all_neighbors, all_distances, all_dist_counts
 
-    def _compute_distances_batch(self, q: np.ndarray, indices: np.ndarray) -> np.ndarray:
+    def _compute_distances_batch(
+        self,
+        q: np.ndarray,
+        indices: np.ndarray,
+        q_normalized: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """
         Compute distances to multiple points at once (for potential optimization).
 
@@ -384,6 +549,8 @@ class DESKNNSearcher:
             Query point.
         indices : np.ndarray of shape (batch_size,)
             Indices of dataset points.
+        q_normalized : np.ndarray or None
+            Pre-normalized query vector for cosine metric.
 
         Returns
         -------
@@ -399,8 +566,9 @@ class DESKNNSearcher:
             return np.sum(np.abs(X_batch - q), axis=1)
 
         elif self.distance_metric == 'cosine':
-            q_norm = np.linalg.norm(q)
-            q_normalized = q / (q_norm + 1e-10)
+            if q_normalized is None:
+                q_norm = np.linalg.norm(q)
+                q_normalized = q / (q_norm + 1e-10)
             similarities = np.dot(self.X_normalized[indices], q_normalized)
             return 1.0 - similarities
 

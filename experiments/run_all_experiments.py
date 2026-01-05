@@ -41,7 +41,8 @@ METHODS = [
 
 K_VALUES = [1, 5, 10, 20, 50]
 
-SEEDS = [42, 123, 456, 789, 1024]
+# SEEDS = [42, 123, 456, 789, 1024]
+SEEDS = [42, 123]
 
 # Method-specific parameter grids
 METHOD_PARAMS = {

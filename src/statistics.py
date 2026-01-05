@@ -7,17 +7,47 @@ k-NN set and confidence bounds based on update patterns.
 """
 
 import numpy as np
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, TYPE_CHECKING
 from scipy import stats
 from scipy.special import gamma
 
+if TYPE_CHECKING:
+    from .utils.profiling import Profiler
 
+
+class WeibullCache:
+    """Cache for Weibull fit parameters within a single query."""
+
+    def __init__(self) -> None:
+        self.shape: Optional[float] = None
+        self.scale: Optional[float] = None
+        self.last_fit_step: int = -1
+
+    def get(self, check_step: int, refresh_every: int) -> Optional[Tuple[float, float]]:
+        if self.shape is None or self.scale is None:
+            return None
+        if refresh_every <= 1:
+            return None
+        if check_step < 0:
+            return None
+        if (check_step - self.last_fit_step) < refresh_every:
+            return self.shape, self.scale
+        return None
+
+    def update(self, shape: float, scale: float, check_step: int) -> None:
+        self.shape = shape
+        self.scale = scale
+        self.last_fit_step = check_step
 def estimate_exceedance_probability(
     distances: List[float],
     d_k: float,
     remaining: int,
     alpha: float = 0.01,
-    use_weibull: bool = True
+    use_weibull: bool = True,
+    profiler: Optional["Profiler"] = None,
+    weibull_cache: Optional["WeibullCache"] = None,
+    weibull_refresh_every: int = 1,
+    check_step: int = -1
 ) -> Tuple[float, float]:
     """
     Estimate probability that remaining points could enter the k-NN set.
@@ -37,6 +67,12 @@ def estimate_exceedance_probability(
         Significance level for confidence bounds.
     use_weibull : bool, default=True
         Whether to use Weibull distribution fitting.
+    weibull_cache : WeibullCache or None
+        Optional cache to reuse Weibull fit parameters.
+    weibull_refresh_every : int, default=1
+        Refresh Weibull fit every N stop checks when cache is used.
+    check_step : int, default=-1
+        Stop-check counter used for cache refresh.
 
     Returns
     -------
@@ -53,7 +89,7 @@ def estimate_exceedance_probability(
     2. The distribution often has a long right tail
     3. It can model various shapes depending on parameters
     """
-    distances = np.array(distances, dtype=np.float64)
+    distances = np.asarray(distances, dtype=np.float64)
     m = len(distances)
 
     if m == 0 or d_k <= 0:
@@ -68,7 +104,15 @@ def estimate_exceedance_probability(
     # Weibull CDF: F(x) = 1 - exp(-(x/scale)^shape)
     if use_weibull and m >= 10:
         try:
-            shape, scale = fit_weibull(distances)
+            cached = None
+            if weibull_cache is not None:
+                cached = weibull_cache.get(check_step, weibull_refresh_every)
+            if cached is not None:
+                shape, scale = cached
+            else:
+                shape, scale = fit_weibull(distances, profiler=profiler)
+                if weibull_cache is not None and shape > 0 and scale > 0:
+                    weibull_cache.update(shape, scale, check_step)
             if shape > 0 and scale > 0:
                 p_below_parametric = weibull_cdf(d_k, shape, scale)
             else:
@@ -94,7 +138,44 @@ def estimate_exceedance_probability(
     return p_below_upper, expected_entrants
 
 
-def fit_weibull(distances: np.ndarray) -> Tuple[float, float]:
+def fit_weibull(
+    distances: np.ndarray,
+    profiler: Optional["Profiler"] = None
+) -> Tuple[float, float]:
+    """
+    Fit Weibull distribution to observed distances using MLE.
+
+    The Weibull distribution has PDF:
+        f(x; k, lambda) = (k/lambda) * (x/lambda)^(k-1) * exp(-(x/lambda)^k)
+
+    where k = shape, lambda = scale.
+
+    Parameters
+    ----------
+    distances : np.ndarray
+        Observed positive distances.
+    profiler : Profiler or None
+        Optional profiler for timing Weibull fitting.
+
+    Returns
+    -------
+    shape : float
+        Weibull shape parameter (k).
+    scale : float
+        Weibull scale parameter (lambda).
+
+    Notes
+    -----
+    Uses scipy.stats.weibull_min.fit() for robust estimation.
+    Falls back to method of moments if MLE fails.
+    """
+    if profiler is not None and profiler.enabled:
+        with profiler.time("weibull_fit"):
+            return _fit_weibull_impl(distances)
+    return _fit_weibull_impl(distances)
+
+
+def _fit_weibull_impl(distances: np.ndarray) -> Tuple[float, float]:
     """
     Fit Weibull distribution to observed distances using MLE.
 
@@ -313,7 +394,7 @@ def adaptive_alpha(
     in terms of standard deviations. Well-separated queries have d_k
     far below the mean.
     """
-    distances = np.array(distances, dtype=np.float64)
+    distances = np.asarray(distances, dtype=np.float64)
 
     if len(distances) < 10:
         return initial_alpha
@@ -379,7 +460,7 @@ def compute_stopping_probability_bayesian(
     posterior_complete : float
         Posterior probability that k-NN set is complete.
     """
-    distances = np.array(distances)
+    distances = np.asarray(distances)
     m = len(distances)
 
     if m == 0:
