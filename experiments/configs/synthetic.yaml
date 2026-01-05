@@ -1,0 +1,50 @@
+# Synthetic data experiment configuration
+
+datasets:
+  - synthetic_clustered
+  - synthetic_uniform
+
+methods:
+  - exact
+  - sklearn_kdtree
+  - sklearn_balltree
+  - lsh
+  - annoy
+  - hnsw
+  - des_knn
+
+k_values:
+  - 5
+  - 10
+  - 20
+
+seeds:
+  - 42
+  - 123
+  - 456
+
+n_queries: 1000
+
+des_knn:
+  alpha: 0.01
+  window_size: 100
+  adaptive_alpha: true
+
+lsh:
+  n_tables: 30
+  n_bits: 12
+  n_probes: 4
+
+annoy:
+  n_trees: 60
+  search_k: null
+
+hnsw:
+  M: 16
+  ef_construction: 200
+  ef: 80
+
+output:
+  dir: results/synthetic
+  save_per_query: true
+  save_figures: true

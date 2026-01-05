@@ -1,0 +1,47 @@
+# CIFAR-10 experiment configuration
+
+datasets:
+  - cifar10
+  - cifar10_resnet
+
+methods:
+  - exact
+  - sklearn_kdtree
+  - sklearn_balltree
+  - lsh
+  - annoy
+  - hnsw
+  - des_knn
+
+k_values:
+  - 10
+  - 20
+
+seeds:
+  - 42
+
+n_queries: 500
+
+des_knn:
+  alpha: 0.01
+  window_size: 200
+  adaptive_alpha: true
+
+lsh:
+  n_tables: 40
+  n_bits: 14
+  n_probes: 5
+
+annoy:
+  n_trees: 100
+  search_k: null
+
+hnsw:
+  M: 32
+  ef_construction: 300
+  ef: 100
+
+output:
+  dir: results/cifar10
+  save_per_query: true
+  save_figures: true

@@ -1,0 +1,26 @@
+# Quick test configuration for debugging
+
+datasets:
+  - synthetic_uniform
+
+methods:
+  - exact
+  - des_knn
+
+k_values:
+  - 10
+
+seeds:
+  - 42
+
+n_queries: 100
+
+des_knn:
+  alpha: 0.01
+  window_size: 100
+  adaptive_alpha: true
+
+output:
+  dir: results/quick_test
+  save_per_query: false
+  save_figures: false

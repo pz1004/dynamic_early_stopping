@@ -1,0 +1,46 @@
+# MNIST-focused experiment configuration
+
+datasets:
+  - mnist
+
+methods:
+  - exact
+  - sklearn_kdtree
+  - sklearn_balltree
+  - lsh
+  - annoy
+  - hnsw
+  - des_knn
+
+k_values:
+  - 10
+
+seeds:
+  - 42
+  - 123
+
+n_queries: 1000
+
+des_knn:
+  alpha: 0.01
+  window_size: 100
+  adaptive_alpha: true
+
+lsh:
+  n_tables: 20
+  n_bits: 12
+  n_probes: 3
+
+annoy:
+  n_trees: 50
+  search_k: null
+
+hnsw:
+  M: 16
+  ef_construction: 200
+  ef: 50
+
+output:
+  dir: results/mnist
+  save_per_query: true
+  save_figures: true

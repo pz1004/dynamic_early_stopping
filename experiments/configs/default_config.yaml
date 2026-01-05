@@ -1,0 +1,77 @@
+# Default experiment configuration
+
+# Datasets to evaluate
+datasets:
+  - mnist
+  - fashion_mnist
+  - synthetic_clustered
+  - synthetic_uniform
+
+# Methods to compare
+methods:
+  - exact
+  - sklearn_kdtree
+  - sklearn_balltree
+  - lsh
+  - annoy
+  - hnsw
+  - des_knn
+
+# k values to test
+k_values:
+  - 1
+  - 5
+  - 10
+  - 20
+  - 50
+
+# Random seeds for multiple runs
+seeds:
+  - 42
+  - 123
+  - 456
+  - 789
+  - 1024
+
+# Number of queries per experiment
+n_queries: 1000
+
+# DES-kNN parameters
+des_knn:
+  alpha: 0.01
+  window_size: 100
+  min_samples: null  # Uses max(2k, 50) if null
+  adaptive_alpha: true
+  use_weibull: true
+
+# LSH parameters
+lsh:
+  n_tables: 20
+  n_bits: 12
+  n_probes: 3
+
+# Annoy parameters
+annoy:
+  n_trees: 50
+  search_k: null  # Uses n_trees * k * 10 if null
+
+# HNSW parameters
+hnsw:
+  M: 16
+  ef_construction: 200
+  ef: 50
+
+# FAISS IVF parameters
+faiss_ivf:
+  nlist: 100
+  nprobe: 10
+
+# Tree parameters
+tree:
+  leaf_size: 30
+
+# Output settings
+output:
+  dir: results
+  save_per_query: true
+  save_figures: true
