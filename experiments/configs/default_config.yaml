@@ -36,13 +36,11 @@ seeds:
 # Number of queries per experiment
 n_queries: 1000
 
-# DES-kNN parameters
+# DES-kNN parameters (UPDATED)
 des_knn:
-  alpha: 0.01
-  window_size: 100
-  min_samples: null  # Uses max(2k, 50) if null
-  adaptive_alpha: true
-  use_weibull: true
+  tolerance: 0.5       # Stop when we expect to miss < 0.5 neighbors
+  confidence: 0.99     # 99% confidence in the upper bound
+  min_samples: null    # Uses max(k+50, 1% of n) if null
 
 # LSH parameters
 lsh:

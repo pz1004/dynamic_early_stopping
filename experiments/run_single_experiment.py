@@ -82,12 +82,11 @@ def get_method(method_name: str, X: np.ndarray, params: Dict[str, Any]):
             nprobe=params.get('nprobe', 10)
         ),
         'des_knn': lambda: DESKNNSearcher(
-            X,
-            alpha=params.get('alpha', 0.01),
-            window_size=params.get('window_size', 100),
-            adaptive_alpha=params.get('adaptive_alpha', True),
-            weibull_refresh_every=params.get('weibull_refresh_every', 10)
-        ),
+        X,
+        tolerance=params.get('tolerance', 0.5),
+        confidence=params.get('confidence', 0.99),
+        min_samples=params.get('min_samples', None)
+        )
     }
 
     if method_name not in methods:
@@ -316,14 +315,12 @@ def main():
     parser.add_argument('--output_dir', type=str, default='results')
 
     # Method-specific parameters
-    parser.add_argument('--alpha', type=float, default=0.01,
-                       help='DES-kNN confidence level')
-    parser.add_argument('--window_size', type=int, default=100,
-                       help='DES-kNN window size')
+    parser.add_argument('--tolerance', type=float, default=0.5,
+                       help='DES-kNN tolerance for expected missed neighbors')
+    parser.add_argument('--confidence', type=float, default=0.99,
+                       help='DES-kNN statistical confidence level')
     parser.add_argument('--stop_check_every', type=int, default=50,
                        help='DES-kNN stop check cadence')
-    parser.add_argument('--weibull_refresh_every', type=int, default=10,
-                       help='DES-kNN Weibull refresh cadence')
     parser.add_argument('--n_tables', type=int, default=10,
                        help='LSH number of tables')
     parser.add_argument('--n_trees', type=int, default=10,
@@ -339,13 +336,12 @@ def main():
 
     # Collect method parameters
     method_params = {
-        'alpha': args.alpha,
-        'window_size': args.window_size,
         'stop_check_every': args.stop_check_every,
-        'weibull_refresh_every': args.weibull_refresh_every,
+        'tolerance': args.tolerance,
+        'confidence': args.confidence,
         'n_tables': args.n_tables,
         'n_trees': args.n_trees,
-        'ef': args.ef
+        'ef': args.ef,
     }
 
     # Run experiment(s)

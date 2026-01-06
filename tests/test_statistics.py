@@ -1,5 +1,5 @@
 """
-Tests for statistics module.
+Tests for the new Beta-Geometric statistics module.
 """
 
 import numpy as np
@@ -9,171 +9,67 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.statistics import (
-    fit_weibull,
-    weibull_cdf,
-    estimate_exceedance_probability,
-    compute_confidence_bound,
-    adaptive_alpha,
-    CircularBuffer
-)
+from src.statistics import estimate_future_matches, compute_required_gap
 
+class TestGapStatistics:
+    """Test Beta-Geometric estimation functions."""
 
-class TestWeibull:
-    """Test Weibull distribution functions."""
+    def test_estimate_future_matches_basic(self):
+        """Test basic behavior of expected matches estimation."""
+        # If we have 1000 points remaining and a gap of 0, 
+        # we can't be sure of anything, so expected misses should be high.
+        # (Technically bounded by confidence, but close to remaining)
+        misses_g0 = estimate_future_matches(gap=0, remaining=1000, confidence_level=0.99)
+        assert misses_g0 > 900 
 
-    def test_weibull_fit(self):
-        """Test Weibull fitting on known distribution."""
-        np.random.seed(42)
-        # Generate Weibull samples with known parameters
-        shape_true, scale_true = 2.0, 5.0
-        samples = np.random.weibull(shape_true, 1000) * scale_true
+    def test_estimate_future_matches_monotonicity(self):
+        """As gap increases, expected misses should decrease."""
+        remaining = 1000
+        misses_g10 = estimate_future_matches(gap=10, remaining=remaining)
+        misses_g50 = estimate_future_matches(gap=50, remaining=remaining)
+        misses_g100 = estimate_future_matches(gap=100, remaining=remaining)
+        
+        assert misses_g10 > misses_g50
+        assert misses_g50 > misses_g100
+        assert misses_g100 < remaining * 0.1  # Should be fairly low by now
 
-        shape_est, scale_est = fit_weibull(samples)
-        assert abs(shape_est - shape_true) < 0.5
-        assert abs(scale_est - scale_true) < 1.0
+    def test_confidence_impact(self):
+        """Higher confidence requirements should result in higher expected misses (more conservative)."""
+        gap = 20
+        rem = 1000
+        
+        misses_c90 = estimate_future_matches(gap, rem, confidence_level=0.90)
+        misses_c99 = estimate_future_matches(gap, rem, confidence_level=0.99)
+        
+        assert misses_c99 > misses_c90
 
-    def test_weibull_cdf(self):
-        """Test Weibull CDF computation."""
-        # F(x) = 1 - exp(-(x/scale)^shape)
-        shape, scale = 2.0, 1.0
+    def test_compute_required_gap(self):
+        """Test inverse calculation of gap."""
+        rem = 1000
+        tol = 0.5
+        conf = 0.99
+        
+        req_gap = compute_required_gap(remaining=rem, tolerance=tol, confidence_level=conf)
+        
+        # Verify that this gap actually satisfies the tolerance
+        est_misses = estimate_future_matches(req_gap, rem, conf)
+        est_misses_prev = estimate_future_matches(req_gap - 1, rem, conf)
+        
+        assert est_misses <= tol
+        assert est_misses_prev > tol  # The gap should be tight (minimal required)
 
-        # At x=0, CDF should be 0
-        assert weibull_cdf(0, shape, scale) == 0.0
-
-        # CDF should be monotonically increasing
-        prev = 0.0
-        for x in np.linspace(0.1, 5.0, 20):
-            curr = weibull_cdf(x, shape, scale)
-            assert curr > prev
-            prev = curr
-
-        # CDF should approach 1
-        assert weibull_cdf(10.0, shape, scale) > 0.99
-
-    def test_weibull_cdf_invalid_params(self):
-        """Test Weibull CDF with invalid parameters."""
-        # Should return 0.5 for invalid params
-        assert weibull_cdf(1.0, 0, 1.0) == 0.5
-        assert weibull_cdf(1.0, 1.0, 0) == 0.5
-        assert weibull_cdf(1.0, -1, 1.0) == 0.5
-
-
-class TestExceedanceProbability:
-    """Test exceedance probability estimation."""
-
-    def test_exceedance_probability(self):
-        """Test exceedance probability estimation."""
-        distances = [1.0, 2.0, 3.0, 4.0, 5.0] * 20  # 100 samples
-        d_k = 2.5
-        p, expected = estimate_exceedance_probability(distances, d_k, remaining=100)
-
-        # About 40% of samples are below 2.5
-        assert 0.3 < p < 0.7
-        assert expected > 0
-
-    def test_exceedance_probability_empty(self):
-        """Test with empty distances."""
-        p, expected = estimate_exceedance_probability([], 1.0, 100)
-        assert p == 1.0
-        assert expected == 100
-
-    def test_exceedance_probability_zero_dk(self):
-        """Test with zero d_k."""
-        p, expected = estimate_exceedance_probability([1.0, 2.0], 0, 100)
-        assert p == 1.0
-
-
-class TestConfidenceBound:
-    """Test confidence bound computation."""
-
-    def test_confidence_bound(self):
-        """Test confidence bound computation."""
-        # Long gap since last update should give high confidence
-        update_history = [10, 20, 30, 40, 50]
-        conf = compute_confidence_bound(update_history, current_idx=200, k=5)
-        assert conf > 0.8
-
-    def test_confidence_bound_few_updates(self):
-        """Test with few updates."""
-        update_history = [5]
-        conf = compute_confidence_bound(update_history, current_idx=10, k=5)
-        assert conf == 0.0  # Not enough updates
-
-    def test_confidence_bound_recent_update(self):
-        """Test with recent update (low confidence)."""
-        update_history = [10, 20, 30, 40, 50]
-        conf = compute_confidence_bound(update_history, current_idx=51, k=5)
-        assert conf < 0.5  # Recent update, low confidence
-
-
-class TestAdaptiveAlpha:
-    """Test adaptive alpha adjustment."""
-
-    def test_adaptive_alpha(self):
-        """Test adaptive alpha adjustment."""
-        np.random.seed(42)
-        distances = list(np.random.randn(100) + 5)  # Mean around 5
-
-        # Easy query: d_k well below mean
-        alpha_easy = adaptive_alpha(distances, d_k=2.0, initial_alpha=0.01)
-
-        # Hard query: d_k near mean
-        alpha_hard = adaptive_alpha(distances, d_k=5.0, initial_alpha=0.01)
-
-        assert alpha_easy < 0.01  # More aggressive
-        assert alpha_hard >= 0.01  # More conservative
-
-    def test_adaptive_alpha_few_samples(self):
-        """Test with few samples (returns initial)."""
-        alpha = adaptive_alpha([1.0, 2.0], 1.5, 0.01)
-        assert alpha == 0.01
-
-    def test_adaptive_alpha_bounds(self):
-        """Test alpha stays within bounds."""
-        distances = list(np.random.randn(100) + 5)
-
-        for d_k in [0.0, 2.0, 5.0, 10.0]:
-            alpha = adaptive_alpha(distances, d_k, 0.01)
-            assert 0.001 <= alpha <= 0.1
-
-
-class TestCircularBuffer:
-    """Test circular buffer operations."""
-
-    def test_circular_buffer(self):
-        """Test circular buffer operations."""
-        buf = CircularBuffer(5)
-        for i in range(10):
-            buf.add(float(i))
-
-        assert len(buf) == 5
-        assert list(buf.get_all()) == [5.0, 6.0, 7.0, 8.0, 9.0]
-
-    def test_circular_buffer_mean(self):
-        """Test buffer mean computation."""
-        buf = CircularBuffer(5)
-        for i in range(5):
-            buf.add(float(i))
-
-        assert buf.mean() == 2.0  # mean of 0,1,2,3,4
-
-    def test_circular_buffer_std(self):
-        """Test buffer std computation."""
-        buf = CircularBuffer(5)
-        for i in range(5):
-            buf.add(float(i))
-
-        expected_std = np.std([0, 1, 2, 3, 4])
-        assert abs(buf.std() - expected_std) < 1e-10
-
-    def test_circular_buffer_empty(self):
-        """Test empty buffer."""
-        buf = CircularBuffer(5)
-        assert len(buf) == 0
-        assert buf.mean() == 0.0
-        assert buf.std() == 0.0
-
+    def test_edge_cases(self):
+        """Test boundary conditions."""
+        # No remaining items
+        assert estimate_future_matches(10, 0) == 0.0
+        assert compute_required_gap(0, 0.5) == 0
+        
+        # Zero tolerance (requires checking everything)
+        # In practice, compute_required_gap returns 'remaining' for strictly 0 tolerance,
+        # or a very high number. Our implementation clamps or calculates it.
+        # If tolerance is 0, we can never be statistically sure unless we check all.
+        req_gap = compute_required_gap(100, 0.0, 0.99)
+        assert req_gap >= 100 # Must check everything
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
