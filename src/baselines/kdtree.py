@@ -47,7 +47,7 @@ class KDTreeKNN(BaseKNNSearcher):
     ----------
     X : np.ndarray
         Dataset of shape (n_samples, n_features).
-    leaf_size : int, default=30
+    leaf_size : int, default=40
         Number of points at which to switch to brute force.
     backtrack_limit : int or None, default=None
         Maximum backtracking steps. None for exact search.
@@ -58,7 +58,7 @@ class KDTreeKNN(BaseKNNSearcher):
     def __init__(
         self,
         X: np.ndarray,
-        leaf_size: int = 30,
+        leaf_size: int = 40,
         backtrack_limit: Optional[int] = None,
         distance_metric: str = 'euclidean'
     ):
@@ -229,7 +229,7 @@ class SklearnKDTreeKNN(BaseKNNSearcher):
     def __init__(
         self,
         X: np.ndarray,
-        leaf_size: int = 30
+        leaf_size: int = 40
     ):
         super().__init__(X)
         self.leaf_size = leaf_size

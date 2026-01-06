@@ -1,0 +1,30 @@
+{
+  "synthetic_clustered": {
+    "lsh": {
+      "10": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 0.9999,
+            "recall_std": 0.0031606961258558207,
+            "speedup_mean": 4.973108903846503,
+            "speedup_std": 1.7657976020435844,
+            "dist_ratio": 0.030838622222222223,
+            "build_time": 2.7126513939583674,
+            "failure_rate_99": 0.001
+          },
+          {
+            "seed": 123,
+            "recall_mean": 0.9999,
+            "recall_std": 0.0031606961258558207,
+            "speedup_mean": 4.901508819094304,
+            "speedup_std": 1.6858191574496229,
+            "dist_ratio": 0.030452733333333336,
+            "build_time": 2.6980198089731857,
+            "failure_rate_99": 0.001
+          }
+        ]
+      }
+    }
+  }
+}

@@ -46,20 +46,20 @@ des_knn:
 
 # LSH parameters
 lsh:
-  n_tables: 20
-  n_bits: 12
-  n_probes: 3
+  n_tables: 10
+  n_bits: 10
+  n_probes: 1
 
 # Annoy parameters
 annoy:
-  n_trees: 50
+  n_trees: 10
   search_k: null  # Uses n_trees * k * 10 if null
 
 # HNSW parameters
 hnsw:
   M: 16
   ef_construction: 200
-  ef: 50
+  ef: 10
 
 # FAISS IVF parameters
 faiss_ivf:
@@ -68,7 +68,7 @@ faiss_ivf:
 
 # Tree parameters
 tree:
-  leaf_size: 30
+  leaf_size: 40
 
 # Output settings
 output:

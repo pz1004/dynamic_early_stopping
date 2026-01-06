@@ -194,6 +194,33 @@ class TestAnnoy:
         assert len(neighbors) == k
         assert len(distances) == k
 
+    def test_annoy_tie_breaker(self):
+        """Exercise tie-breaking in AnnoyNode heap ordering."""
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [0.0, 1.0],
+            ],
+            dtype=np.float32,
+        )
+        q = np.array([0.0, 0.0], dtype=np.float32)
+        k = 2
+
+        searcher = AnnoyKNN(
+            X,
+            n_trees=1,
+            max_leaf_size=1,
+            use_library=False,
+            random_state=0,
+        )
+        searcher.fit()
+        neighbors, distances, _ = searcher.query(q, k)
+
+        assert len(neighbors) == k
+        assert len(distances) == k
+
 
 class TestHNSW:
     """Test HNSW implementation."""

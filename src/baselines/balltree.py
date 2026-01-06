@@ -40,7 +40,7 @@ class BallTreeKNN(BaseKNNSearcher):
     ----------
     X : np.ndarray
         Dataset of shape (n_samples, n_features).
-    leaf_size : int, default=30
+    leaf_size : int, default=40
         Maximum number of points in a leaf node.
     distance_metric : str, default='euclidean'
         Distance metric: 'euclidean', 'manhattan'.
@@ -49,7 +49,7 @@ class BallTreeKNN(BaseKNNSearcher):
     def __init__(
         self,
         X: np.ndarray,
-        leaf_size: int = 30,
+        leaf_size: int = 40,
         distance_metric: str = 'euclidean'
     ):
         super().__init__(X)
@@ -192,7 +192,7 @@ class SklearnBallTreeKNN(BaseKNNSearcher):
     def __init__(
         self,
         X: np.ndarray,
-        leaf_size: int = 30,
+        leaf_size: int = 40,
         metric: str = 'euclidean'
     ):
         super().__init__(X)

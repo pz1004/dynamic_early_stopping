@@ -47,10 +47,34 @@ SEEDS = [42, 123]
 # Method-specific parameter grids
 METHOD_PARAMS = {
     'des_knn': [
-        {'alpha': 0.01, 'window_size': 100, 'adaptive_alpha': True},
-        {'alpha': 0.005, 'window_size': 100, 'adaptive_alpha': True},
-        {'alpha': 0.01, 'window_size': 200, 'adaptive_alpha': True},
-        {'alpha': 0.01, 'window_size': 100, 'adaptive_alpha': False},
+        {
+            'alpha': 0.01,
+            'window_size': 100,
+            'adaptive_alpha': True,
+            'stop_check_every': 50,
+            'weibull_refresh_every': 10
+        },
+        {
+            'alpha': 0.005,
+            'window_size': 100,
+            'adaptive_alpha': True,
+            'stop_check_every': 50,
+            'weibull_refresh_every': 10
+        },
+        {
+            'alpha': 0.01,
+            'window_size': 200,
+            'adaptive_alpha': True,
+            'stop_check_every': 50,
+            'weibull_refresh_every': 10
+        },
+        {
+            'alpha': 0.01,
+            'window_size': 100,
+            'adaptive_alpha': False,
+            'stop_check_every': 50,
+            'weibull_refresh_every': 10
+        },
     ],
     'lsh': [
         {'n_tables': 10, 'n_bits': 10, 'n_probes': 2},
@@ -77,7 +101,11 @@ def run_all_experiments(
     seeds: List[int] = None,
     n_queries: int = 1000,
     output_dir: str = 'results',
-    quick: bool = False
+    quick: bool = False,
+    param_grid: str = 'single',
+    stop_check_every: int = 50,
+    weibull_refresh_every: int = 10,
+    n_jobs: int = 1
 ) -> Dict[str, Any]:
     """
     Run full experiment suite.
@@ -86,6 +114,15 @@ def run_all_experiments(
     methods = methods or METHODS
     k_values = k_values or K_VALUES
     seeds = seeds or SEEDS
+
+    if param_grid not in {'single', 'full'}:
+        raise ValueError("param_grid must be 'single' or 'full'")
+    if stop_check_every < 1:
+        raise ValueError("stop_check_every must be >= 1")
+    if weibull_refresh_every < 1:
+        raise ValueError("weibull_refresh_every must be >= 1")
+    if n_jobs < 1:
+        raise ValueError("n_jobs must be >= 1")
 
     if quick:
         # Reduced settings for quick testing
@@ -100,7 +137,14 @@ def run_all_experiments(
 
     all_results = {}
 
-    total_experiments = len(datasets) * len(methods) * len(k_values) * len(seeds)
+    total_experiments = 0
+    for dataset in datasets:
+        for method in methods:
+            if param_grid == 'full' and method in METHOD_PARAMS:
+                param_configs = METHOD_PARAMS[method]
+            else:
+                param_configs = [{}]
+            total_experiments += len(param_configs) * len(k_values) * len(seeds)
     current = 0
 
     for dataset in datasets:
@@ -110,7 +154,7 @@ def run_all_experiments(
             all_results[dataset][method] = {}
 
             # Get parameter configurations for this method
-            if method in METHOD_PARAMS:
+            if param_grid == 'full' and method in METHOD_PARAMS:
                 param_configs = METHOD_PARAMS[method]
             else:
                 param_configs = [{}]
@@ -119,13 +163,18 @@ def run_all_experiments(
                 all_results[dataset][method][k] = {}
 
                 for param_config in param_configs:
+                    if method == 'des_knn':
+                        param_config = dict(param_config)
+                        param_config.setdefault('stop_check_every', stop_check_every)
+                        param_config.setdefault('weibull_refresh_every', weibull_refresh_every)
                     config_key = str(param_config) if param_config else 'default'
                     all_results[dataset][method][k][config_key] = []
 
                     for seed in seeds:
                         current += 1
                         print(f"\n[{current}/{total_experiments}] "
-                              f"Dataset: {dataset}, Method: {method}, k: {k}, seed: {seed}")
+                              f"Dataset: {dataset}, Method: {method}, k: {k}, "
+                              f"config: {config_key}, seed: {seed}")
 
                         try:
                             results = run_experiment(
@@ -135,7 +184,8 @@ def run_all_experiments(
                                 n_queries=n_queries,
                                 method_params=param_config,
                                 random_seed=seed,
-                                verbose=False
+                                verbose=False,
+                                n_jobs=n_jobs
                             )
 
                             all_results[dataset][method][k][config_key].append({
@@ -185,6 +235,15 @@ def main():
                        help='Number of queries per experiment')
     parser.add_argument('--output_dir', type=str, default='results',
                        help='Output directory')
+    parser.add_argument('--param_grid', type=str, default='single',
+                       choices=['single', 'full'],
+                       help='Use single default params or full grid per method')
+    parser.add_argument('--stop_check_every', type=int, default=50,
+                       help='DES-kNN stop check cadence')
+    parser.add_argument('--weibull_refresh_every', type=int, default=10,
+                       help='DES-kNN Weibull refresh cadence')
+    parser.add_argument('--n_jobs', type=int, default=1,
+                       help='Number of parallel jobs for query evaluation')
 
     args = parser.parse_args()
 
@@ -194,7 +253,11 @@ def main():
         k_values=args.k_values,
         n_queries=args.n_queries,
         output_dir=args.output_dir,
-        quick=args.quick
+        quick=args.quick,
+        param_grid=args.param_grid,
+        stop_check_every=args.stop_check_every,
+        weibull_refresh_every=args.weibull_refresh_every,
+        n_jobs=args.n_jobs
     )
 
 

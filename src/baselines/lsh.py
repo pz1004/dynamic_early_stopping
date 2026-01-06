@@ -141,11 +141,11 @@ class LSHKNN(BaseKNNSearcher):
     ----------
     X : np.ndarray
         Dataset of shape (n_samples, n_features).
-    n_tables : int, default=20
+    n_tables : int, default=10
         Number of hash tables. More tables = higher recall.
-    n_bits : int, default=12
+    n_bits : int, default=10
         Bits per hash. More bits = more selective hashing.
-    n_probes : int, default=3
+    n_probes : int, default=1
         Number of buckets to probe per table during query.
     distance_metric : str, default='euclidean'
         Distance metric for candidate verification.
@@ -156,9 +156,9 @@ class LSHKNN(BaseKNNSearcher):
     def __init__(
         self,
         X: np.ndarray,
-        n_tables: int = 20,
-        n_bits: int = 12,
-        n_probes: int = 3,
+        n_tables: int = 10,
+        n_bits: int = 10,
+        n_probes: int = 1,
         distance_metric: str = 'euclidean',
         random_state: Optional[int] = None
     ):

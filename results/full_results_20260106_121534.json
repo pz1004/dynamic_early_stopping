@@ -1,0 +1,30 @@
+{
+  "synthetic_clustered": {
+    "des_knn": {
+      "10": {
+        "{'stop_check_every': 50, 'weibull_refresh_every': 10}": [
+          {
+            "seed": 42,
+            "recall_mean": 0.9569000000000001,
+            "recall_std": 0.19061057158510386,
+            "speedup_mean": 0.005652603800047959,
+            "speedup_std": 0.026713744993247544,
+            "dist_ratio": 0.95692,
+            "build_time": 9.509967640042305e-07,
+            "failure_rate_99": 0.053
+          },
+          {
+            "seed": 123,
+            "recall_mean": 0.9653999999999999,
+            "recall_std": 0.17459335611643417,
+            "speedup_mean": 0.005458423734947717,
+            "speedup_std": 0.02715469070195772,
+            "dist_ratio": 0.9646283333333334,
+            "build_time": 7.50063918530941e-07,
+            "failure_rate_99": 0.04
+          }
+        ]
+      }
+    }
+  }
+}

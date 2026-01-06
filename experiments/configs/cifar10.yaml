@@ -28,18 +28,18 @@ des_knn:
   adaptive_alpha: true
 
 lsh:
-  n_tables: 40
-  n_bits: 14
-  n_probes: 5
+  n_tables: 10
+  n_bits: 10
+  n_probes: 1
 
 annoy:
-  n_trees: 100
+  n_trees: 10
   search_k: null
 
 hnsw:
   M: 32
   ef_construction: 300
-  ef: 100
+  ef: 10
 
 output:
   dir: results/cifar10

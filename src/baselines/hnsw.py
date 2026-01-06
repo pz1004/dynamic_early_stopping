@@ -260,7 +260,7 @@ class HNSWKNN(BaseKNNSearcher):
         Number of connections per node.
     ef_construction : int, default=200
         Beam width during construction.
-    ef : int, default=50
+    ef : int, default=10
         Beam width during search.
     use_library : bool, default=False
         Whether to use hnswlib (if installed).
@@ -273,7 +273,7 @@ class HNSWKNN(BaseKNNSearcher):
         X: np.ndarray,
         M: int = 16,
         ef_construction: int = 200,
-        ef: int = 50,
+        ef: int = 10,
         use_library: bool = False,
         random_state: Optional[int] = None
     ):

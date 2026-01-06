@@ -22,6 +22,7 @@ import time
 from typing import Tuple, Optional, List, Set
 from collections import defaultdict
 import heapq
+import itertools
 
 from .exact_brute_force import BaseKNNSearcher
 
@@ -95,8 +96,8 @@ class AnnoyTree:
         return node
 
     def get_candidates(
-        self,
-        q: np.ndarray,
+        self, 
+        q: np.ndarray, 
         search_k: int
     ) -> Set[int]:
         """
@@ -118,10 +119,11 @@ class AnnoyTree:
 
         # Priority queue: (priority, node)
         # Use negative distance to hyperplane as priority (closer = higher priority)
-        queue = [(0.0, self.root)]
+        counter = itertools.count()
+        queue = [(0.0, next(counter), self.root)]
 
         while queue and len(candidates) < search_k:
-            _, node = heapq.heappop(queue)
+            _, _, node = heapq.heappop(queue)
 
             if node.is_leaf:
                 candidates.update(node.indices.tolist())
@@ -136,10 +138,10 @@ class AnnoyTree:
                     primary, secondary = node.right, node.left
 
                 # Always explore primary child
-                heapq.heappush(queue, (0.0, primary))
+                heapq.heappush(queue, (0.0, next(counter), primary))
 
                 # Maybe explore secondary child (closer hyperplanes = higher priority)
-                heapq.heappush(queue, (abs(margin), secondary))
+                heapq.heappush(queue, (abs(margin), next(counter), secondary))
 
         return candidates
 
@@ -153,7 +155,7 @@ class AnnoyIndexPure:
 
     def __init__(
         self,
-        n_trees: int = 50,
+        n_trees: int = 10,
         max_leaf_size: int = 100,
         random_state: Optional[int] = None
     ):
@@ -198,10 +200,12 @@ class AnnoyKNN(BaseKNNSearcher):
     ----------
     X : np.ndarray
         Dataset of shape (n_samples, n_features).
-    n_trees : int, default=50
+    n_trees : int, default=10
         Number of trees in the forest. More trees = higher recall.
+    max_leaf_size : int, default=100
+        Maximum number of points in a leaf for the pure Python implementation.
     search_k : int or None, default=None
-        Number of nodes to inspect during query. If None, uses n_trees * k * 10.
+        Number of nodes to inspect during query. If None, uses n_trees * k.
     distance_metric : str, default='euclidean'
         Distance metric: 'euclidean', 'angular' (cosine), 'manhattan'.
     use_library : bool, default=False
@@ -213,7 +217,8 @@ class AnnoyKNN(BaseKNNSearcher):
     def __init__(
         self,
         X: np.ndarray,
-        n_trees: int = 50,
+        n_trees: int = 10,
+        max_leaf_size: int = 100,
         search_k: Optional[int] = None,
         distance_metric: str = 'euclidean',
         use_library: bool = False,
@@ -221,6 +226,7 @@ class AnnoyKNN(BaseKNNSearcher):
     ):
         super().__init__(X)
         self.n_trees = n_trees
+        self.max_leaf_size = max_leaf_size
         self.search_k = search_k
         self.distance_metric = distance_metric
         self.use_library = use_library
@@ -256,6 +262,7 @@ class AnnoyKNN(BaseKNNSearcher):
                 # Fall back to pure Python
                 self.index = AnnoyIndexPure(
                     n_trees=self.n_trees,
+                    max_leaf_size=self.max_leaf_size,
                     random_state=self.random_state
                 )
                 self.index.fit(self.X)
@@ -263,6 +270,7 @@ class AnnoyKNN(BaseKNNSearcher):
         else:
             self.index = AnnoyIndexPure(
                 n_trees=self.n_trees,
+                max_leaf_size=self.max_leaf_size,
                 random_state=self.random_state
             )
             self.index.fit(self.X)
@@ -280,7 +288,7 @@ class AnnoyKNN(BaseKNNSearcher):
         """Find approximate k nearest neighbors."""
         q = np.asarray(q, dtype=np.float32)
 
-        search_k = self.search_k or (self.n_trees * k * 10)
+        search_k = self.search_k or (self.n_trees * k)
 
         if self._using_library:
             neighbors, distances = self.index.get_nns_by_vector(
