@@ -8,19 +8,19 @@ methods:
   - des_knn
 
 k_values:
-  - 10
+  - 5
 
 seeds:
   - 42
 
 n_queries: 100
 
+# DES-kNN Gap + CV Configuration
 des_knn:
-  alpha: 0.01
-  window_size: 100
-  adaptive_alpha: true
+  tolerance: 1.0       # Loose tolerance for speed
+  confidence: 0.95
+  max_cv: null         # Disable CV check for simple uniform test
 
 output:
   dir: results/quick_test
   save_per_query: false
-  save_figures: false

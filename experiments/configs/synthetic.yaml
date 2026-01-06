@@ -6,12 +6,10 @@ datasets:
 
 methods:
   - exact
-  - sklearn_kdtree
-  - sklearn_balltree
-  - lsh
-  - annoy
-  - hnsw
   - des_knn
+  - sklearn_kdtree
+  - lsh
+  - hnsw
 
 k_values:
   - 5
@@ -25,19 +23,18 @@ seeds:
 
 n_queries: 1000
 
+# DES-kNN Gap + CV Configuration
 des_knn:
-  alpha: 0.01
-  window_size: 100
-  adaptive_alpha: true
+  tolerance: 0.5
+  confidence: 0.99
+  # For synthetic_clustered, max_cv is critical to avoid getting stuck in local blobs
+  max_cv: 0.2
 
+# Baselines
 lsh:
   n_tables: 10
   n_bits: 10
-  n_probes: 1
-
-annoy:
-  n_trees: 10
-  search_k: null
+  n_probes: 2
 
 hnsw:
   M: 16
@@ -47,4 +44,3 @@ hnsw:
 output:
   dir: results/synthetic
   save_per_query: true
-  save_figures: true

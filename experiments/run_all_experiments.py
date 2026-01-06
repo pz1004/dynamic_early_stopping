@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Run complete experiment suite across all datasets and methods.
+Updated for Beta-Geometric (Gap) DES-kNN.
 
 Usage:
     python run_all_experiments.py
@@ -8,13 +9,11 @@ Usage:
 """
 
 import argparse
-import numpy as np
 import json
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List
 import sys
-from itertools import product
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -41,39 +40,34 @@ METHODS = [
 
 K_VALUES = [1, 5, 10, 20, 50]
 
-# SEEDS = [42, 123, 456, 789, 1024]
 SEEDS = [42, 123]
 
 # Method-specific parameter grids
 METHOD_PARAMS = {
     'des_knn': [
+        # Strict config (Target ~99.9% Recall)
         {
-            'alpha': 0.01,
-            'window_size': 100,
-            'adaptive_alpha': True,
-            'stop_check_every': 50,
-            'weibull_refresh_every': 10
+            'tolerance': 0.1,
+            'confidence': 0.99,
+            'max_cv': 0.2
         },
+        # Balanced config (Target ~99% Recall)
         {
-            'alpha': 0.005,
-            'window_size': 100,
-            'adaptive_alpha': True,
-            'stop_check_every': 50,
-            'weibull_refresh_every': 10
+            'tolerance': 0.5,
+            'confidence': 0.99,
+            'max_cv': 0.3
         },
+        # Fast config (Target ~95% Recall)
         {
-            'alpha': 0.01,
-            'window_size': 200,
-            'adaptive_alpha': True,
-            'stop_check_every': 50,
-            'weibull_refresh_every': 10
+            'tolerance': 1.0,
+            'confidence': 0.95,
+            'max_cv': None
         },
+        # Gap-only (No CV check)
         {
-            'alpha': 0.01,
-            'window_size': 100,
-            'adaptive_alpha': False,
-            'stop_check_every': 50,
-            'weibull_refresh_every': 10
+            'tolerance': 0.5,
+            'confidence': 0.99,
+            'max_cv': None
         },
     ],
     'lsh': [
@@ -103,8 +97,6 @@ def run_all_experiments(
     output_dir: str = 'results',
     quick: bool = False,
     param_grid: str = 'single',
-    stop_check_every: int = 50,
-    weibull_refresh_every: int = 10,
     n_jobs: int = 1
 ) -> Dict[str, Any]:
     """
@@ -117,10 +109,6 @@ def run_all_experiments(
 
     if param_grid not in {'single', 'full'}:
         raise ValueError("param_grid must be 'single' or 'full'")
-    if stop_check_every < 1:
-        raise ValueError("stop_check_every must be >= 1")
-    if weibull_refresh_every < 1:
-        raise ValueError("weibull_refresh_every must be >= 1")
     if n_jobs < 1:
         raise ValueError("n_jobs must be >= 1")
 
@@ -129,7 +117,7 @@ def run_all_experiments(
         datasets = datasets[:2]
         methods = ['exact', 'des_knn', 'hnsw']
         k_values = [10]
-        seeds = seeds[:2]
+        seeds = seeds[:1]
         n_queries = 100
 
     output_path = Path(output_dir)
@@ -163,10 +151,6 @@ def run_all_experiments(
                 all_results[dataset][method][k] = {}
 
                 for param_config in param_configs:
-                    if method == 'des_knn':
-                        param_config = dict(param_config)
-                        param_config.setdefault('stop_check_every', stop_check_every)
-                        param_config.setdefault('weibull_refresh_every', weibull_refresh_every)
                     config_key = str(param_config) if param_config else 'default'
                     all_results[dataset][method][k][config_key] = []
 
@@ -238,10 +222,6 @@ def main():
     parser.add_argument('--param_grid', type=str, default='single',
                        choices=['single', 'full'],
                        help='Use single default params or full grid per method')
-    parser.add_argument('--stop_check_every', type=int, default=50,
-                       help='DES-kNN stop check cadence')
-    parser.add_argument('--weibull_refresh_every', type=int, default=10,
-                       help='DES-kNN Weibull refresh cadence')
     parser.add_argument('--n_jobs', type=int, default=1,
                        help='Number of parallel jobs for query evaluation')
 
@@ -255,8 +235,6 @@ def main():
         output_dir=args.output_dir,
         quick=args.quick,
         param_grid=args.param_grid,
-        stop_check_every=args.stop_check_every,
-        weibull_refresh_every=args.weibull_refresh_every,
         n_jobs=args.n_jobs
     )
 

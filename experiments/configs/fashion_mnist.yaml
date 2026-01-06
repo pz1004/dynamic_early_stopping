@@ -4,16 +4,14 @@ datasets:
   - fashion_mnist
 
 methods:
+  - des_knn
   - exact
   - sklearn_kdtree
-  - sklearn_balltree
-  - lsh
-  - annoy
   - hnsw
-  - des_knn
 
 k_values:
   - 10
+  - 20
 
 seeds:
   - 42
@@ -21,26 +19,18 @@ seeds:
 
 n_queries: 1000
 
+# DES-kNN Gap + CV Configuration
 des_knn:
-  alpha: 0.01
-  window_size: 100
-  adaptive_alpha: true
+  tolerance: 0.5
+  confidence: 0.99
+  max_cv: 0.3          # High variance in Fashion-MNIST classes requires CV check
 
-lsh:
-  n_tables: 10
-  n_bits: 10
-  n_probes: 1
-
-annoy:
-  n_trees: 10
-  search_k: null
-
+# Baselines
 hnsw:
   M: 16
   ef_construction: 200
-  ef: 10
+  ef: 20
 
 output:
   dir: results/fashion_mnist
   save_per_query: true
-  save_figures: true
