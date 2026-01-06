@@ -6,7 +6,10 @@ This project implements a query-adaptive early stopping criterion for k-NN searc
 
 ## Key Innovation
 
-Uses online statistical bounds to estimate the probability that remaining unsearched points could enter the k-NN set, enabling query-dependent computation allocation.
+Uses the **Beta-Geometric Gap Model** for O(1) stopping criterion computation. Instead of modeling the distance distribution (Weibull), we model the probability of the next update based on how long it has been since the last update. This approach is:
+- **O(1) per check** (3 floating-point operations)
+- **Directly calibratable** via the "Expected Missed Neighbors" tolerance parameter
+- **Query-adaptive** - easy queries stop early, hard queries continue longer
 
 ## Project Structure
 
@@ -57,21 +60,21 @@ des_knn/
 
 ## Implementation Order
 
-1. **Phase 1: Core Utilities** (30 min)
+1. **Phase 1: Core Utilities**
    - `src/utils/heap.py` - Max heap implementation
    - `src/utils/data_loader.py` - Dataset loading
    - `src/utils/metrics.py` - Evaluation metrics
 
-2. **Phase 2: Statistics Module** (30 min)
-   - `src/statistics.py` - Online statistical estimators
+2. **Phase 2: Statistics Module**
+   - `src/statistics.py` - Beta-Geometric estimators (`estimate_future_matches`, `compute_required_gap`)
 
-3. **Phase 3: Main Algorithm** (1 hour)
-   - `src/des_knn.py` - Core DES-kNN implementation
+3. **Phase 3: Main Algorithm**
+   - `src/des_knn.py` - Core DES-kNN with Gap-based stopping
 
-4. **Phase 4: Baselines** (1.5 hours)
-   - All baseline implementations
+4. **Phase 4: Baselines**
+   - All baseline implementations for comparison
 
-5. **Phase 5: Experiments** (1 hour)
+5. **Phase 5: Experiments**
    - Experiment runners and analysis scripts
 
 ## Dependencies
@@ -91,7 +94,7 @@ torchvision>=0.10.0
 
 ## Expected Results
 
-- **Recall@k**: ≥ 99% with default α=0.01
+- **Recall@k**: ≥ 95% with default tolerance=0.5
 - **Speedup**: 2-5× over exact search
 - **Adaptive behavior**: Easy queries stop early, hard queries continue longer
 

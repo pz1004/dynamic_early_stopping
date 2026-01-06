@@ -134,8 +134,8 @@ def compute_required_gap(
 
     numerator = np.log(delta)
     
-    # required_gap = numerator / denominator - 1
+    # required_gap = numerator / denom - 1
     # We use ceil to ensure we strictly satisfy the inequality
-    required_gap = int(np.ceil(numerator / denominator) - 1)
+    required_gap = int(np.ceil(numerator / denom) - 1)
 
     return max(0, required_gap)

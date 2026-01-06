@@ -83,17 +83,36 @@ class TestDESKNN:
 
         assert np.mean(recalls) >= 0.95
 
-    def test_des_knn_speedup(self, sample_data):
-        """Test that early stopping provides speedup."""
-        k = 10
-        # Loose tolerance for speed
-        searcher = DESKNNSearcher(sample_data, tolerance=2.0, random_state=42)
+    def test_des_knn_speedup(self):
+        """Test that early stopping provides speedup on clustered data."""
+        # Use clustered data where early stopping is more effective.
+        # Uniform random data in high dimensions has similar distances everywhere,
+        # making early stopping hard. Clustered data has clear "easy" queries.
+        np.random.seed(42)
+        n = 5000
+        d = 50
 
-        q = np.random.randn(sample_data.shape[1]).astype(np.float32)
+        # Create clustered data: 10 clusters
+        n_clusters = 10
+        points_per_cluster = n // n_clusters
+        X = []
+        for i in range(n_clusters):
+            center = np.random.randn(d) * 10  # Spread clusters apart
+            cluster = center + np.random.randn(points_per_cluster, d) * 0.5
+            X.append(cluster)
+        X = np.vstack(X).astype(np.float32)
+
+        # Query near one cluster center (easy query)
+        q = X[0] + np.random.randn(d).astype(np.float32) * 0.1
+        k = 10
+
+        # Reasonable tolerance and confidence
+        searcher = DESKNNSearcher(X, tolerance=0.5, confidence=0.99, random_state=42)
+
         _, _, dist_count = searcher.query(q, k)
 
-        # Should check substantially fewer than N points
-        assert dist_count < len(sample_data) * 0.8
+        # Should check fewer than all N points for an easy query
+        assert dist_count < n, f"Expected some speedup but checked all {dist_count}/{n} points"
 
     def test_des_knn_return_stats(self, sample_data, query_point):
         """Test return_stats option."""

@@ -85,6 +85,7 @@ def get_method(method_name: str, X: np.ndarray, params: Dict[str, Any]):
         X,
         tolerance=params.get('tolerance', 0.5),
         confidence=params.get('confidence', 0.99),
+        max_cv=params.get('max_cv', None),
         min_samples=params.get('min_samples', None)
         )
     }
@@ -195,6 +196,7 @@ def run_experiment(
     all_dist_counts = []
     all_query_times = []
     all_stopping_points = []
+    all_scan_ratios = []
 
     stop_check_every = method_params.get('stop_check_every', 50)
     if method_name == 'des_knn' and verbose:
@@ -205,11 +207,8 @@ def run_experiment(
             t0 = time.perf_counter()
 
             if method_name == 'des_knn':
-                neighbors, distances, dist_count = searcher.query(
-                    q,
-                    k,
-                    stop_check_every=stop_check_every
-                )
+                neighbors, distances, dist_count, stats = searcher.query(q, k, return_stats=True)
+                scan_ratio = stats.get('scan_ratio', dist_count / len(X_train))
             else:
                 neighbors, distances, dist_count = searcher.query(q, k)
             all_stopping_points.append(dist_count / len(X_train))
@@ -256,6 +255,7 @@ def run_experiment(
             all_speedups.append(speedup)
             all_dist_counts.append(dist_count)
             all_query_times.append(query_time)
+            all_scan_ratios.append(scan_ratio)
             all_stopping_points.append(stopping_point)
 
     # Aggregate metrics
@@ -265,6 +265,11 @@ def run_experiment(
         all_dist_counts,
         len(X_train)
     )
+
+    metrics['scan_ratio'] = {
+        'mean': np.mean(all_scan_ratios),
+        'std': np.std(all_scan_ratios)
+    }
 
     # Add additional info
     results = {
@@ -292,6 +297,7 @@ def run_experiment(
         print("\nResults:")
         print(f"  Recall@{k}: {metrics['recall']['mean']:.4f} +/- {metrics['recall']['std']:.4f}")
         print(f"  Speedup: {metrics['speedup']['mean']:.2f}x +/- {metrics['speedup']['std']:.2f}")
+        print(f"  Scan Ratio: {metrics['scan_ratio']['mean']*100:.1f}%")
         print(f"  Dist ratio: {metrics['dist_ratio']['mean']:.4f}")
         print(f"  Failure rate (<99% recall): {metrics['failure_rate_99']*100:.1f}%")
 
@@ -321,6 +327,8 @@ def main():
                        help='DES-kNN statistical confidence level')
     parser.add_argument('--stop_check_every', type=int, default=50,
                        help='DES-kNN stop check cadence')
+    parser.add_argument('--max_cv', type=float, default=None,
+                       help='DES-kNN maximum coefficient of variation for dispersion check')
     parser.add_argument('--n_tables', type=int, default=10,
                        help='LSH number of tables')
     parser.add_argument('--n_trees', type=int, default=10,
@@ -339,6 +347,7 @@ def main():
         'stop_check_every': args.stop_check_every,
         'tolerance': args.tolerance,
         'confidence': args.confidence,
+        'max_cv': args.max_cv,
         'n_tables': args.n_tables,
         'n_trees': args.n_trees,
         'ef': args.ef,

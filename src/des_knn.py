@@ -56,6 +56,7 @@ class DESKNNSearcher:
         self.tolerance = tolerance
         self.confidence = confidence
         self.min_samples = min_samples
+        self.max_cv = max_cv
         self.distance_metric = distance_metric
         self.random_state = random_state
 

@@ -72,12 +72,12 @@ np.random.seed(42)
 X = np.random.randn(10000, 128).astype(np.float32)
 q = np.random.randn(128).astype(np.float32)
 
-# Initialize searcher
+# Initialize searcher with Beta-Geometric Gap model
 searcher = DESKNNSearcher(
     X,
-    alpha=0.01,
-    window_size=100,
-    adaptive_alpha=True,
+    tolerance=0.5,        # Expected missed neighbors threshold
+    confidence=0.99,      # Confidence level for statistical bound
+    max_cv=0.3,           # Optional: max coefficient of variation
     distance_metric='euclidean',
     random_state=42
 )
@@ -109,21 +109,26 @@ python experiments/analyze_results.py --results_dir results/
 
 ## Expected Results
 
-- **Recall@k**: >= 99% with default alpha=0.01
+- **Recall@k**: >= 95% with default tolerance=0.5
 - **Speedup**: 2-5x over exact search
 - **Adaptive behavior**: Easy queries stop early, hard queries continue longer
 
 ## Algorithm Overview
 
-DES-kNN uses three complementary stopping criteria:
+DES-kNN uses the **Beta-Geometric Gap Model** for O(1) stopping criterion computation:
 
-1. **Exceedance Probability**: Estimates the probability that remaining unsearched points could enter the k-NN set using Weibull distribution fitting and Hoeffding bounds.
+1. **Gap Statistic**: Tracks the number of samples since the last update to the k-NN heap. Under random search order, the inter-arrival of "better" neighbors follows a Geometric distribution.
 
-2. **Update Pattern Confidence**: Models inter-update gaps as geometric random variables to estimate confidence that k-NN set is complete.
+2. **Bayesian Bound**: Uses Beta(1, 1+gap) posterior to compute an upper bound on the probability that any unseen point is a true neighbor:
+   ```
+   p_max = 1 - (1 - confidence)^(1/(gap+1))
+   ```
 
-3. **Gap Ratio**: Tracks the fraction of search completed since the last k-NN update.
+3. **Expected Misses**: Stops when `E[Missed] = remaining * p_max < tolerance`.
 
-The algorithm terminates when at least two of these criteria are satisfied.
+4. **Dispersion Check** (optional): If `max_cv` is set, continues searching if the coefficient of variation of current k-NN distances exceeds the threshold (prevents stopping on local clusters).
+
+This approach is O(1) per check (3 floating-point ops) compared to O(N*iter) for Weibull fitting.
 
 ## Baselines
 

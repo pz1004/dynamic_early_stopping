@@ -4,22 +4,16 @@
 
 ## Overview
 
-Implement the Dynamic Early Stopping k-Nearest Neighbors (DES-kNN) algorithm that adaptively determines when to stop searching based on statistical confidence bounds.
+Implements the Dynamic Early Stopping k-Nearest Neighbors (DES-kNN) algorithm using the Beta-Geometric "Gap" model. This approach uses O(1) statistical bounds based on inter-arrival times of neighbor updates to determine when to stop searching.
 
 ## Required Imports
 
 ```python
 import numpy as np
-from collections import deque
-from typing import Tuple, List, Optional, Dict, Any
 import heapq
-from .statistics import (
-    estimate_exceedance_probability,
-    compute_confidence_bound,
-    adaptive_alpha,
-    fit_weibull
-)
-from .utils.heap import MaxHeap
+from typing import Tuple, List, Optional, Dict, Any
+from .statistics import estimate_future_matches
+from joblib import Parallel, delayed
 ```
 
 ## Class: DESKNNSearcher
@@ -30,60 +24,60 @@ from .utils.heap import MaxHeap
 class DESKNNSearcher:
     """
     Dynamic Early Stopping k-Nearest Neighbors Searcher.
-    
-    Uses online statistical bounds to estimate when the true k-NN set
-    has been found with high probability, enabling early termination.
-    
+
+    Uses a Beta-Geometric statistical model to estimate the expected number
+    of missed neighbors based on the "gap" (number of samples) since the
+    last improvement to the k-NN set.
+
     Parameters
     ----------
     X : np.ndarray of shape (n_samples, n_features)
         The dataset to search.
-    alpha : float, default=0.01
-        Significance level for stopping criterion (1-alpha = confidence).
-    window_size : int, default=100
-        Size of sliding window for distance statistics.
+    tolerance : float, default=0.5
+        The acceptable expected number of missed neighbors.
+        Lower values (e.g., 0.1) are stricter (higher recall, slower).
+        Higher values (e.g., 1.0) are faster (lower recall).
+    confidence : float, default=0.99
+        Confidence level for the statistical bound (0.0 to 1.0).
     min_samples : int or None, default=None
-        Minimum samples to compute before considering early stop.
-        If None, uses max(2*k, 50).
-    adaptive_alpha : bool, default=True
-        Whether to adaptively adjust alpha based on query difficulty.
-    use_weibull : bool, default=True
-        Whether to use Weibull distribution fit for probability estimation.
+        Minimum samples to scan before attempting to stop.
+        If None, uses max(k + 50, 1% of n).
+    max_cv : float or None, default=None
+        Maximum coefficient of variation for neighbor distances.
+        If set, prevents stopping when distances are too dispersed.
     distance_metric : str, default='euclidean'
         Distance metric: 'euclidean', 'cosine', or 'manhattan'.
     random_state : int or None, default=None
         Random seed for reproducibility.
     """
-    
+
     def __init__(
         self,
         X: np.ndarray,
-        alpha: float = 0.01,
-        window_size: int = 100,
+        tolerance: float = 0.5,
+        confidence: float = 0.99,
         min_samples: Optional[int] = None,
-        adaptive_alpha: bool = True,
-        use_weibull: bool = True,
+        max_cv: Optional[float] = None,
         distance_metric: str = 'euclidean',
-        random_state: Optional[int] = None
+        random_state: Optional[int] = None,
     ):
         self.X = np.asarray(X, dtype=np.float32)
         self.n, self.d = self.X.shape
-        self.alpha = alpha
-        self.window_size = window_size
+        self.tolerance = tolerance
+        self.confidence = confidence
         self.min_samples = min_samples
-        self.use_adaptive_alpha = adaptive_alpha
-        self.use_weibull = use_weibull
+        self.max_cv = max_cv
         self.distance_metric = distance_metric
         self.random_state = random_state
-        
-        # Precompute for efficiency
+
+        # Precompute for cosine efficiency
         if distance_metric == 'cosine':
             self.norms = np.linalg.norm(X, axis=1, keepdims=True)
             self.X_normalized = X / (self.norms + 1e-10)
         else:
             self.norms = None
             self.X_normalized = None
-        
+
         # Set random generator
         self.rng = np.random.default_rng(random_state)
 ```
@@ -100,7 +94,7 @@ def query(
 ) -> Tuple[np.ndarray, np.ndarray, int] | Tuple[np.ndarray, np.ndarray, int, Dict]:
     """
     Find k nearest neighbors with dynamic early stopping.
-    
+
     Parameters
     ----------
     q : np.ndarray of shape (n_features,)
@@ -111,227 +105,160 @@ def query(
         Whether to return distances.
     return_stats : bool, default=False
         Whether to return detailed statistics.
-    
+
     Returns
     -------
     neighbors : np.ndarray of shape (k,)
         Indices of k nearest neighbors.
-    distances : np.ndarray of shape (k,)
-        Distances to k nearest neighbors (if return_distances=True).
+    distances : np.ndarray of shape (k,), optional
+        Distances to k nearest neighbors.
     dist_count : int
         Number of distance computations performed.
-    stats : dict (optional)
-        Detailed statistics if return_stats=True.
+    stats : dict, optional
+        Detailed statistics (if return_stats=True).
     """
     q = np.asarray(q, dtype=np.float32)
-    
-    # Determine minimum samples
-    min_samples = self.min_samples if self.min_samples is not None else max(2 * k, 50)
-    
-    # Initialize data structures
-    # Using list as max heap (negate distances for max heap behavior)
-    heap = []  # (neg_distance, index)
+    n = self.n
+
+    # Validate parameters
+    if k > n:
+        k = n
+
+    # Determine minimum samples to scan
+    if self.min_samples is not None:
+        min_scan = self.min_samples
+    else:
+        # Default: at least k+50 or 1% of data
+        min_scan = max(k + 50, int(0.01 * n))
+
+    min_scan = min(min_scan, n)
+
+    # Initialize Heap (max-heap via negation)
+    heap = []
     d_k = np.inf
-    
-    # Statistics tracking
-    distances_window = deque(maxlen=self.window_size)
-    update_history = []
+
+    # Statistics Tracking
     dist_count = 0
-    last_update = 0
-    
-    # For detailed stats
-    all_computed_distances = [] if return_stats else None
-    stopping_criteria_history = [] if return_stats else None
-    
-    # Random permutation for unbiased statistics
-    indices = self.rng.permutation(self.n)
-    
-    # Precompute query-specific values for distance computation
+    last_update_idx = 0
+
+    # Precompute query-specific values for distance
+    q_normalized = None
     if self.distance_metric == 'cosine':
         q_norm = np.linalg.norm(q)
         q_normalized = q / (q_norm + 1e-10)
-    
-    # Main search loop
+
+    # Generate random search order
+    indices = self.rng.permutation(n)
+
+    # Localize for hot loop
+    compute_dist = self._compute_distance_fast
+    estimate_matches = estimate_future_matches
+    tolerance = self.tolerance
+    confidence = self.confidence
+
     stopped_early = False
+    final_expected_misses = 0.0
+
+    # Main Search Loop
     for i, idx in enumerate(indices):
-        # Compute distance
-        d = self._compute_distance(q, idx)
+        # 1. Compute Distance
+        d = compute_dist(q, idx, q_normalized)
         dist_count += 1
-        
-        if return_stats:
-            all_computed_distances.append(d)
-        
-        # Update k-NN heap
+
+        # 2. Update Heap
         if len(heap) < k:
             heapq.heappush(heap, (-d, idx))
             if len(heap) == k:
                 d_k = -heap[0][0]
+                last_update_idx = i
         elif d < d_k:
             heapq.heapreplace(heap, (-d, idx))
             d_k = -heap[0][0]
-            last_update = i
-            update_history.append(i)
-        
-        # Track distance statistics
-        distances_window.append(d)
-        
-        # Check early stopping criterion
-        if i >= min_samples:
-            should_stop, criteria = self._should_stop(
-                distances_window=list(distances_window),
-                d_k=d_k,
-                update_history=update_history,
-                current_idx=i,
-                last_update=last_update,
-                k=k,
-                remaining=self.n - i - 1
-            )
-            
-            if return_stats:
-                stopping_criteria_history.append(criteria)
-            
-            if should_stop:
-                stopped_early = True
-                break
-    
-    # Extract results (sort by distance)
-    heap_items = [(-d, idx) for d, idx in heap]
-    heap_items.sort()
-    
-    neighbors = np.array([idx for d, idx in heap_items])
-    distances = np.array([d for d, idx in heap_items])
-    
+            last_update_idx = i
+
+        # 3. Check Early Stopping
+        if i >= min_scan:
+            current_gap = i - last_update_idx
+
+            # Check 1: Large enough gap?
+            if current_gap > k:
+                remaining = n - 1 - i
+                expected_misses = estimate_matches(current_gap, remaining, confidence)
+
+                # Check 2: Statistical Convergence
+                if expected_misses < tolerance:
+
+                    # Check 3: Dispersion / Variance (Optional)
+                    should_stop = True
+                    if self.max_cv is not None:
+                        current_dists = np.array([-h[0] for h in heap])
+                        mean_d = np.mean(current_dists)
+
+                        if mean_d > 1e-9:
+                            std_d = np.std(current_dists)
+                            cv = std_d / mean_d
+                            if cv > self.max_cv:
+                                should_stop = False
+
+                    if should_stop:
+                        stopped_early = True
+                        final_expected_misses = expected_misses
+                        break
+
+    # Extract results (sort by distance ascending)
+    heap.sort(key=lambda x: -x[0])
+
+    neighbors = np.array([idx for _, idx in heap], dtype=np.int64)
+    distances = np.array([-d for d, _ in heap], dtype=np.float32)
+
     if return_stats:
         stats = {
             'stopped_early': stopped_early,
-            'stopping_point': dist_count / self.n,
-            'last_update': last_update,
-            'num_updates': len(update_history),
-            'update_history': update_history,
-            'final_d_k': d_k,
-            'all_distances': all_computed_distances,
-            'criteria_history': stopping_criteria_history
+            'scan_ratio': dist_count / n,
+            'dist_count': dist_count,
+            'last_update_index': last_update_idx,
+            'final_gap': dist_count - 1 - last_update_idx,
+            'expected_misses': final_expected_misses if stopped_early else 0.0
         }
-        return neighbors, distances, dist_count, stats
-    
-    return neighbors, distances, dist_count
+        if return_distances:
+            return neighbors, distances, dist_count, stats
+        return neighbors, dist_count, stats
+
+    if return_distances:
+        return neighbors, distances, dist_count
+    return neighbors, dist_count
 ```
 
 ### Distance Computation
 
 ```python
-def _compute_distance(self, q: np.ndarray, idx: int) -> float:
-    """
-    Compute distance between query and dataset point.
-    
-    Parameters
-    ----------
-    q : np.ndarray
-        Query point.
-    idx : int
-        Index of dataset point.
-    
-    Returns
-    -------
-    distance : float
-    """
-    x = self.X[idx]
-    
-    if self.distance_metric == 'euclidean':
-        diff = q - x
-        return np.sqrt(np.dot(diff, diff))
-    
-    elif self.distance_metric == 'manhattan':
-        return np.sum(np.abs(q - x))
-    
-    elif self.distance_metric == 'cosine':
-        # Cosine distance = 1 - cosine_similarity
-        if self.X_normalized is not None:
-            q_norm = np.linalg.norm(q)
-            q_normalized = q / (q_norm + 1e-10)
-            similarity = np.dot(q_normalized, self.X_normalized[idx])
-        else:
-            dot_product = np.dot(q, x)
-            norm_q = np.linalg.norm(q)
-            norm_x = np.linalg.norm(x)
-            similarity = dot_product / (norm_q * norm_x + 1e-10)
-        return 1.0 - similarity
-    
-    else:
-        raise ValueError(f"Unknown distance metric: {self.distance_metric}")
-```
-
-### Stopping Criterion
-
-```python
-def _should_stop(
+def _compute_distance_fast(
     self,
-    distances_window: List[float],
-    d_k: float,
-    update_history: List[int],
-    current_idx: int,
-    last_update: int,
-    k: int,
-    remaining: int
-) -> Tuple[bool, Dict[str, Any]]:
+    q: np.ndarray,
+    idx: int,
+    q_normalized: Optional[np.ndarray] = None
+) -> float:
     """
-    Determine whether to stop searching based on statistical criteria.
-    
-    Returns
-    -------
-    should_stop : bool
-    criteria : dict
-        Dictionary with criterion values for analysis.
+    Optimized internal distance computation.
     """
-    # Get current alpha (possibly adaptive)
-    if self.use_adaptive_alpha:
-        current_alpha = adaptive_alpha(
-            distances_window, d_k, self.alpha
-        )
-    else:
-        current_alpha = self.alpha
-    
-    # Criterion 1: Estimate probability remaining points enter k-NN
-    p_remain, expected_entrants = estimate_exceedance_probability(
-        distances=distances_window,
-        d_k=d_k,
-        remaining=remaining,
-        alpha=current_alpha,
-        use_weibull=self.use_weibull
-    )
-    
-    # Criterion 2: Confidence from update pattern
-    conf = compute_confidence_bound(
-        update_history=update_history,
-        current_idx=current_idx,
-        k=k
-    )
-    
-    # Criterion 3: Gap ratio
-    gap = current_idx - last_update
-    gap_ratio = gap / (current_idx + 1)
-    
-    # Evaluate criteria
-    crit1 = p_remain < current_alpha / k
-    crit2 = conf > 1 - current_alpha
-    crit3 = (gap_ratio > 0.5) and (gap > 10 * k)
-    
-    # Combined decision: require at least 2 criteria
-    should_stop = (crit1 and crit2) or (crit1 and crit3) or (crit2 and crit3)
-    
-    criteria = {
-        'p_remain': p_remain,
-        'expected_entrants': expected_entrants,
-        'confidence': conf,
-        'gap_ratio': gap_ratio,
-        'gap': gap,
-        'alpha': current_alpha,
-        'crit1': crit1,
-        'crit2': crit2,
-        'crit3': crit3
-    }
-    
-    return should_stop, criteria
+    if self.distance_metric == 'euclidean':
+        x = self.X[idx]
+        d = q - x
+        return np.sqrt(d.dot(d))
+
+    elif self.distance_metric == 'manhattan':
+        x = self.X[idx]
+        return np.sum(np.abs(q - x))
+
+    elif self.distance_metric == 'cosine':
+        if self.X_normalized is not None:
+            similarity = np.dot(q_normalized, self.X_normalized[idx])
+            return 1.0 - similarity
+        else:
+            x = self.X[idx]
+            return 1.0 - (np.dot(q, x) / (np.linalg.norm(q) * np.linalg.norm(x) + 1e-10))
+
+    return 0.0
 ```
 
 ### Batch Query Method
@@ -344,8 +271,8 @@ def query_batch(
     n_jobs: int = 1
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Query multiple points.
-    
+    Query multiple points in parallel.
+
     Parameters
     ----------
     queries : np.ndarray of shape (n_queries, n_features)
@@ -353,80 +280,62 @@ def query_batch(
     k : int
         Number of neighbors.
     n_jobs : int, default=1
-        Number of parallel jobs (1 = sequential).
-    
+        Number of parallel jobs.
+
     Returns
     -------
-    all_neighbors : np.ndarray of shape (n_queries, k)
-    all_distances : np.ndarray of shape (n_queries, k)
-    all_dist_counts : np.ndarray of shape (n_queries,)
+    all_neighbors : np.ndarray
+    all_distances : np.ndarray
+    all_dist_counts : np.ndarray
     """
     n_queries = len(queries)
     all_neighbors = np.zeros((n_queries, k), dtype=np.int64)
     all_distances = np.zeros((n_queries, k), dtype=np.float32)
     all_dist_counts = np.zeros(n_queries, dtype=np.int64)
-    
+
     if n_jobs == 1:
         for i, q in enumerate(queries):
-            neighbors, distances, dist_count = self.query(q, k)
-            all_neighbors[i] = neighbors
-            all_distances[i] = distances
-            all_dist_counts[i] = dist_count
+            n_idxs, dists, count = self.query(q, k, return_distances=True)
+            all_neighbors[i] = n_idxs
+            all_distances[i] = dists
+            all_dist_counts[i] = count
     else:
-        # Parallel implementation using joblib
-        from joblib import Parallel, delayed
-        
-        def _single_query(q):
-            return self.query(q, k)
-        
+        def _job(i, q):
+            return i, self.query(q, k, return_distances=True)
+
         results = Parallel(n_jobs=n_jobs)(
-            delayed(_single_query)(q) for q in queries
+            delayed(_job)(i, q) for i, q in enumerate(queries)
         )
-        
-        for i, (neighbors, distances, dist_count) in enumerate(results):
-            all_neighbors[i] = neighbors
-            all_distances[i] = distances
-            all_dist_counts[i] = dist_count
-    
+
+        for i, (n_idxs, dists, count) in results:
+            all_neighbors[i] = n_idxs
+            all_distances[i] = dists
+            all_dist_counts[i] = count
+
     return all_neighbors, all_distances, all_dist_counts
 ```
 
-## Vectorized Distance Computation (Optional Optimization)
+## Algorithm: Beta-Geometric Gap Model
 
-```python
-def _compute_distances_batch(self, q: np.ndarray, indices: np.ndarray) -> np.ndarray:
-    """
-    Compute distances to multiple points at once (for potential optimization).
-    
-    Parameters
-    ----------
-    q : np.ndarray of shape (n_features,)
-        Query point.
-    indices : np.ndarray of shape (batch_size,)
-        Indices of dataset points.
-    
-    Returns
-    -------
-    distances : np.ndarray of shape (batch_size,)
-    """
-    X_batch = self.X[indices]
-    
-    if self.distance_metric == 'euclidean':
-        diff = X_batch - q
-        return np.sqrt(np.sum(diff * diff, axis=1))
-    
-    elif self.distance_metric == 'manhattan':
-        return np.sum(np.abs(X_batch - q), axis=1)
-    
-    elif self.distance_metric == 'cosine':
-        q_norm = np.linalg.norm(q)
-        q_normalized = q / (q_norm + 1e-10)
-        similarities = np.dot(self.X_normalized[indices], q_normalized)
-        return 1.0 - similarities
-    
-    else:
-        raise ValueError(f"Unknown distance metric: {self.distance_metric}")
-```
+### Theory
+
+Under random search order, the probability that a random unseen point x satisfies `dist(x,q) < d_k` is a fixed value `p`. The number of samples between updates follows a **Geometric distribution**.
+
+If we observe `G` consecutive samples without an update (a "gap"), we can use Bayesian inference to bound `p`:
+
+1. **Prior**: Beta(1, 1) = Uniform
+2. **Likelihood**: G consecutive failures
+3. **Posterior**: Beta(1, 1 + G)
+4. **Upper Bound**: `p_max = 1 - (1 - confidence)^(1/(G+1))`
+
+### Stopping Criterion
+
+Stop when `E[Missed] = remaining * p_max < tolerance`
+
+### Complexity
+
+- **Per-check cost**: O(1) - just 3 floating-point operations
+- **Total overhead**: Negligible compared to distance computations
 
 ## Usage Example
 
@@ -439,12 +348,12 @@ np.random.seed(42)
 X = np.random.randn(10000, 128).astype(np.float32)
 q = np.random.randn(128).astype(np.float32)
 
-# Initialize searcher
+# Initialize searcher with Beta-Geometric Gap model
 searcher = DESKNNSearcher(
     X,
-    alpha=0.01,
-    window_size=100,
-    adaptive_alpha=True,
+    tolerance=0.5,        # Expected missed neighbors threshold
+    confidence=0.99,      # Confidence level for statistical bound
+    max_cv=0.3,           # Optional: max coefficient of variation
     distance_metric='euclidean',
     random_state=42
 )
@@ -460,10 +369,20 @@ print(f"Speedup: {len(X) / dist_count:.2f}x")
 # Query with statistics
 neighbors, distances, dist_count, stats = searcher.query(q, k, return_stats=True)
 print(f"Stopped early: {stats['stopped_early']}")
-print(f"Stopping point: {stats['stopping_point']*100:.1f}%")
+print(f"Scan ratio: {stats['scan_ratio']*100:.1f}%")
+print(f"Expected misses: {stats['expected_misses']:.4f}")
 ```
 
-## Unit Tests to Implement
+## Parameter Tuning
+
+| Parameter | Effect | Recommended Range |
+|-----------|--------|-------------------|
+| `tolerance` | Higher = faster, lower recall | 0.1 (strict) to 2.0 (loose) |
+| `confidence` | Higher = more conservative | 0.95 to 0.999 |
+| `max_cv` | Prevents early stop on dispersed neighbors | 0.2 to 0.5 or None |
+| `min_samples` | Ensures enough samples before stopping | k+50 to 5% of n |
+
+## Unit Tests
 
 ```python
 # tests/test_des_knn.py
@@ -476,23 +395,19 @@ def test_des_knn_exact_small_dataset():
     """On tiny dataset, should return exact k-NN."""
     pass
 
-def test_des_knn_recall():
+def test_des_knn_high_recall():
     """Test recall meets threshold on synthetic data."""
     pass
 
 def test_des_knn_speedup():
-    """Test that early stopping provides speedup."""
+    """Test that early stopping provides speedup on clustered data."""
     pass
 
-def test_des_knn_distance_metrics():
-    """Test all distance metrics work correctly."""
+def test_des_knn_cv_check():
+    """Test that max_cv prevents early stopping on dispersed neighbors."""
     pass
 
-def test_des_knn_reproducibility():
-    """Test random_state provides reproducible results."""
-    pass
-
-def test_des_knn_batch_query():
-    """Test batch query returns correct shapes."""
+def test_des_knn_return_stats():
+    """Test return_stats option."""
     pass
 ```

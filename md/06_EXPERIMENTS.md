@@ -96,9 +96,10 @@ def get_method(method_name: str, X: np.ndarray, params: Dict[str, Any]):
         ),
         'des_knn': lambda: DESKNNSearcher(
             X,
-            alpha=params.get('alpha', 0.01),
-            window_size=params.get('window_size', 100),
-            adaptive_alpha=params.get('adaptive_alpha', True)
+            tolerance=params.get('tolerance', 0.5),
+            confidence=params.get('confidence', 0.99),
+            max_cv=params.get('max_cv', 0.3),
+            random_state=params.get('random_state', 42)
         ),
     }
     
@@ -287,10 +288,12 @@ def main():
     parser.add_argument('--output_dir', type=str, default='results')
     
     # Method-specific parameters
-    parser.add_argument('--alpha', type=float, default=0.01,
+    parser.add_argument('--tolerance', type=float, default=0.5,
+                       help='DES-kNN expected misses threshold')
+    parser.add_argument('--confidence', type=float, default=0.99,
                        help='DES-kNN confidence level')
-    parser.add_argument('--window_size', type=int, default=100,
-                       help='DES-kNN window size')
+    parser.add_argument('--max_cv', type=float, default=0.3,
+                       help='DES-kNN max coefficient of variation')
     parser.add_argument('--n_tables', type=int, default=20,
                        help='LSH number of tables')
     parser.add_argument('--n_trees', type=int, default=50,
@@ -306,8 +309,9 @@ def main():
     
     # Collect method parameters
     method_params = {
-        'alpha': args.alpha,
-        'window_size': args.window_size,
+        'tolerance': args.tolerance,
+        'confidence': args.confidence,
+        'max_cv': args.max_cv,
         'n_tables': args.n_tables,
         'n_trees': args.n_trees,
         'ef': args.ef
@@ -422,10 +426,10 @@ SEEDS = [42, 123, 456, 789, 1024]
 # Method-specific parameter grids
 METHOD_PARAMS = {
     'des_knn': [
-        {'alpha': 0.01, 'window_size': 100, 'adaptive_alpha': True},
-        {'alpha': 0.005, 'window_size': 100, 'adaptive_alpha': True},
-        {'alpha': 0.01, 'window_size': 200, 'adaptive_alpha': True},
-        {'alpha': 0.01, 'window_size': 100, 'adaptive_alpha': False},
+        {'tolerance': 0.5, 'confidence': 0.99, 'max_cv': 0.3},
+        {'tolerance': 0.1, 'confidence': 0.99, 'max_cv': 0.3},
+        {'tolerance': 1.0, 'confidence': 0.99, 'max_cv': 0.3},
+        {'tolerance': 0.5, 'confidence': 0.95, 'max_cv': None},
     ],
     'lsh': [
         {'n_tables': 10, 'n_bits': 10, 'n_probes': 2},
@@ -804,13 +808,12 @@ seeds:
 # Number of queries per experiment
 n_queries: 1000
 
-# DES-kNN parameters
+# DES-kNN parameters (Beta-Geometric Gap model)
 des_knn:
-  alpha: 0.01
-  window_size: 100
-  min_samples: null  # Uses max(2k, 50) if null
-  adaptive_alpha: true
-  use_weibull: true
+  tolerance: 0.5       # Expected missed neighbors threshold
+  confidence: 0.99     # Confidence level for statistical bound
+  max_cv: 0.3          # Max coefficient of variation (optional)
+  min_samples: null    # Uses max(k+50, 1% of n) if null
 
 # LSH parameters
 lsh:
