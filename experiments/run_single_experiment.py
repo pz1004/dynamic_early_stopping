@@ -222,6 +222,7 @@ def run_experiment(
             all_recalls.append(recall)
             all_speedups.append(speedup)
             all_dist_counts.append(dist_count)
+            all_scan_ratios.append(scan_ratio)
             all_query_times.append(query_time)
 
             if verbose and (i + 1) % 100 == 0:
@@ -255,7 +256,6 @@ def run_experiment(
             all_speedups.append(speedup)
             all_dist_counts.append(dist_count)
             all_query_times.append(query_time)
-            all_scan_ratios.append(scan_ratio)
             all_stopping_points.append(stopping_point)
 
     # Aggregate metrics
