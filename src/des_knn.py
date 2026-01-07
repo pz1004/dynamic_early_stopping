@@ -12,6 +12,7 @@ from typing import Tuple, List, Optional, Dict, Any
 from .statistics import estimate_future_matches
 from .utils.profiling import Profiler
 from joblib import Parallel, delayed
+from .sorting import BaseSorter, PCASorter
 
 
 class DESKNNSearcher:
@@ -39,6 +40,11 @@ class DESKNNSearcher:
         Distance metric: 'euclidean', 'cosine', or 'manhattan'.
     random_state : int or None, default=None
         Random seed for reproducibility.
+    block_size : int, default=256
+        Number of points to process in each vectorized block.
+        Larger blocks amortize Python overhead but may compute extra distances.
+        The stopping criterion is only checked once per block.
+        Default of 256 balances vectorization benefits with stopping granularity.
     """
 
     def __init__(
@@ -48,8 +54,10 @@ class DESKNNSearcher:
         confidence: float = 0.99,
         min_samples: Optional[int] = None,
         max_cv: Optional[float] = None,
+        sorter: Optional[BaseSorter] = None,
         distance_metric: str = 'euclidean',
         random_state: Optional[int] = None,
+        block_size: int = 256,
     ):
         self.X = np.asarray(X, dtype=np.float32)
         self.n, self.d = self.X.shape
@@ -59,6 +67,7 @@ class DESKNNSearcher:
         self.max_cv = max_cv
         self.distance_metric = distance_metric
         self.random_state = random_state
+        self.block_size = block_size
 
         # Precompute for cosine efficiency
         if distance_metric == 'cosine':
@@ -70,6 +79,18 @@ class DESKNNSearcher:
 
         # Set random generator
         self.rng = np.random.default_rng(random_state)
+
+        # Initialize Sorter
+        if sorter is None:
+            # Default to random behavior if not specified
+            # Pass the RNG to ensure reproducibility
+            self.sorter = BaseSorter(rng=self.rng)
+        else:
+            self.sorter = sorter
+            # If the sorter needs training and hasn't been fit, fit it now
+            # (Note: PCASorter needs X to fit)
+            if hasattr(self.sorter, 'fit') and getattr(self.sorter, 'X_reduced', None) is None:
+                self.sorter.fit(self.X)
 
     def fit(self) -> 'DESKNNSearcher':
         """No-op for API compatibility with baselines."""
@@ -140,66 +161,70 @@ class DESKNNSearcher:
             q_normalized = q / (q_norm + 1e-10)
 
         # Generate random search order
-        indices = self.rng.permutation(n)
+        indices = self.sorter.get_sorted_indices(q, self.X)
 
         # Optimization: Localize variables for the hot loop
-        compute_dist = self._compute_distance_fast
+        compute_distances_batch = self._compute_distances_batch
         estimate_matches = estimate_future_matches
         tolerance = self.tolerance
         confidence = self.confidence
-        
+        block_size = self.block_size
+
         # Output stats collection
         stopped_early = False
         final_expected_misses = 0.0
-        
-        # Main Search Loop
-        for i, idx in enumerate(indices):
-            # 1. Compute Distance
-            d = compute_dist(q, idx, q_normalized)
-            dist_count += 1
 
-            # 2. Update Heap
-            if len(heap) < k:
-                heapq.heappush(heap, (-d, idx))
-                if len(heap) == k:
+        # Block-Based Main Search Loop
+        # Process points in blocks to amortize Python overhead
+        for block_start in range(0, n, block_size):
+            block_end = min(block_start + block_size, n)
+            block_indices = indices[block_start:block_end]
+
+            # 1. Vectorized Distance Computation (fast BLAS operation)
+            block_dists = compute_distances_batch(q, block_indices, q_normalized)
+            dist_count += len(block_indices)
+
+            # 2. Batch Heap Update
+            # Process all distances in this block
+            for j, (d, idx) in enumerate(zip(block_dists, block_indices)):
+                global_idx = block_start + j  # Position in overall search order
+
+                if len(heap) < k:
+                    heapq.heappush(heap, (-d, idx))
+                    if len(heap) == k:
+                        d_k = -heap[0][0]
+                        last_update_idx = global_idx
+                elif d < d_k:
+                    heapq.heapreplace(heap, (-d, idx))
                     d_k = -heap[0][0]
-                    # The heap just became full; treat this as an update
-                    last_update_idx = i 
-            elif d < d_k:
-                # Found a closer neighbor
-                heapq.heapreplace(heap, (-d, idx))
-                d_k = -heap[0][0]
-                last_update_idx = i
+                    last_update_idx = global_idx
 
-            # 3. Check Early Stopping
-            # Only check if we've met the minimum scan requirement
-            if i >= min_scan:
-                current_gap = i - last_update_idx
-                
+            # 3. Check Early Stopping (once per block, not per element)
+            # Only check after processing minimum samples
+            current_position = block_end - 1
+            if current_position >= min_scan:
+                current_gap = current_position - last_update_idx
+
                 # Check 1: Large enough gap?
                 if current_gap > k:
-                    remaining = n - 1 - i
+                    remaining = n - block_end
                     expected_misses = estimate_matches(current_gap, remaining, confidence)
-                    
+
                     # Check 2: Statistical Convergence
                     if expected_misses < tolerance:
-                        
+
                         # Check 3: Dispersion / Variance (Optional Safety)
                         should_stop = True
                         if self.max_cv is not None:
-                            # Extract current positive distances from heap
-                            # Heap stores (-d, idx), so we negate to get positive d
                             current_dists = np.array([-h[0] for h in heap])
                             mean_d = np.mean(current_dists)
-                            
-                            if mean_d > 1e-9: # Avoid division by zero
+
+                            if mean_d > 1e-9:
                                 std_d = np.std(current_dists)
                                 cv = std_d / mean_d
                                 if cv > self.max_cv:
-                                    # Variance is too high; neighbors aren't "tight" yet.
-                                    # Continue searching despite the Gap.
                                     should_stop = False
-                        
+
                         if should_stop:
                             stopped_early = True
                             final_expected_misses = expected_misses
@@ -266,6 +291,64 @@ class DESKNNSearcher:
                 return 1.0 - (np.dot(q, x) / (np.linalg.norm(q) * np.linalg.norm(x) + 1e-10))
         
         return 0.0
+
+    def _compute_distances_batch(
+        self,
+        q: np.ndarray,
+        indices: np.ndarray,
+        q_normalized: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """
+        Vectorized batch distance computation using BLAS operations.
+
+        Computes distances from query q to all points at the given indices
+        in a single vectorized operation.
+
+        Parameters
+        ----------
+        q : np.ndarray of shape (n_features,)
+            Query point.
+        indices : np.ndarray of shape (batch_size,)
+            Indices of database points to compute distances to.
+        q_normalized : np.ndarray or None
+            Pre-normalized query for cosine metric.
+
+        Returns
+        -------
+        distances : np.ndarray of shape (batch_size,)
+            Distances from q to each point in X[indices].
+        """
+        # Fetch batch of points: shape (batch_size, n_features)
+        batch = self.X[indices]
+
+        if self.distance_metric == 'euclidean':
+            # Vectorized Euclidean: ||q - x||^2 = ||q||^2 + ||x||^2 - 2*q.x
+            # Using the expansion for efficiency with BLAS
+            diff = batch - q  # (batch_size, n_features)
+            # Sum of squares along feature axis
+            distances = np.sqrt(np.einsum('ij,ij->i', diff, diff))
+
+        elif self.distance_metric == 'manhattan':
+            # Vectorized Manhattan distance
+            distances = np.sum(np.abs(batch - q), axis=1)
+
+        elif self.distance_metric == 'cosine':
+            # Cosine distance = 1 - dot(q_norm, x_norm)
+            if self.X_normalized is not None and q_normalized is not None:
+                batch_normalized = self.X_normalized[indices]
+                # Batch dot product: (batch_size, d) @ (d,) -> (batch_size,)
+                similarities = batch_normalized @ q_normalized
+                distances = 1.0 - similarities
+            else:
+                # Fallback (should not happen in normal usage)
+                norms = np.linalg.norm(batch, axis=1)
+                q_norm = np.linalg.norm(q)
+                similarities = (batch @ q) / (norms * q_norm + 1e-10)
+                distances = 1.0 - similarities
+        else:
+            distances = np.zeros(len(indices), dtype=np.float32)
+
+        return distances.astype(np.float32)
 
     def query_batch(
         self,

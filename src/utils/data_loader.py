@@ -15,6 +15,56 @@ from pathlib import Path
 import os
 
 
+def read_fvecs(filename: str) -> np.ndarray:
+    """Read .fvecs format (float vectors) from TEXMEX.
+
+    Format: For each vector, [dim (int32), data (dim x float32)]
+    """
+    with open(filename, 'rb') as f:
+        # Read first int32 to get dimension
+        dim = np.fromfile(f, dtype=np.int32, count=1)[0]
+        f.seek(0)  # Reset to beginning
+
+        # Calculate record size: 1 int32 (4 bytes) + dim float32s
+        # We read as float32 but the first value is actually int32
+        # So we read (dim + 1) float32s per record
+        record_floats = dim + 1
+        data = np.fromfile(f, dtype=np.float32)
+
+    n = len(data) // record_floats
+    data = data.reshape(n, record_floats)
+    # Skip first column (dimension field read as float32)
+    return data[:, 1:].copy()
+
+
+def read_bvecs(filename: str) -> np.ndarray:
+    """Read .bvecs format (byte vectors) from TEXMEX."""
+    with open(filename, 'rb') as f:
+        data = np.fromfile(f, dtype=np.uint8)
+
+    # First 4 bytes of each vector encode dimension as int32
+    dim = int(np.frombuffer(data[:4], dtype=np.int32)[0])
+    # Each record is: dim (4 bytes) + vector (dim bytes) = dim+4 bytes
+    record_size = dim + 4
+    n = len(data) // record_size
+
+    # Reshape and extract vectors (skip dimension field)
+    data = data.reshape(n, record_size)
+    return data[:, 4:].astype(np.float32)
+
+
+def read_ivecs(filename: str) -> np.ndarray:
+    """Read .ivecs format (integer vectors) from TEXMEX."""
+    with open(filename, 'rb') as f:
+        data = np.fromfile(f, dtype=np.int32)
+
+    dim = data[0]
+    n = len(data) // (dim + 1)
+
+    data = data.reshape(n, dim + 1)
+    return data[:, 1:].copy()
+
+
 class DataLoader:
     """
     Unified data loader for all experiment datasets.
@@ -68,6 +118,8 @@ class DataLoader:
             'synthetic_clustered': self._load_synthetic_clustered,
             'synthetic_uniform': self._load_synthetic_uniform,
             'glove': self._load_glove,
+            'sift1m': self._load_sift1m,
+            'gist1m': self._load_gist1m,
         }
 
         if dataset_name not in loaders:
@@ -436,6 +488,171 @@ class DataLoader:
 
         return X[:n_train], X[n_train:], y[:n_train], y[n_train:]
 
+    def _download_file(self, url: str, dest_path: Path) -> bool:
+        """Download a file from URL with progress indicator."""
+        import urllib.request
+        import sys
+
+        print(f"Downloading {url}...")
+        print(f"  Destination: {dest_path}")
+
+        try:
+            def progress_hook(count, block_size, total_size):
+                if total_size > 0:
+                    percent = min(100, count * block_size * 100 // total_size)
+                    mb_downloaded = count * block_size / (1024 * 1024)
+                    mb_total = total_size / (1024 * 1024)
+                    sys.stdout.write(f"\r  Progress: {percent}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)")
+                    sys.stdout.flush()
+
+            urllib.request.urlretrieve(url, dest_path, progress_hook)
+            print("\n  Download complete!")
+            return True
+        except Exception as e:
+            print(f"\n  Download failed: {e}")
+            return False
+
+    def _load_sift1m(
+        self,
+        normalize: bool = False,
+        auto_download: bool = True
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Load SIFT1M dataset.
+
+        SIFT1M: 1,000,000 SIFT descriptors (128-d)
+        - 1,000,000 base vectors (database)
+        - 10,000 query vectors
+        - 100 ground truth neighbors per query
+
+        Supports two formats:
+        1. TEXMEX .fvecs format (sift/ directory)
+        2. ANN-benchmarks HDF5 format (sift-128-euclidean.hdf5)
+        """
+        sift_dir = self.data_dir / 'sift'
+        hdf5_path = self.data_dir / 'sift-128-euclidean.hdf5'
+
+        base_path = sift_dir / 'sift_base.fvecs'
+        query_path = sift_dir / 'sift_query.fvecs'
+
+        # Try HDF5 format first (from ann-benchmarks)
+        if hdf5_path.exists():
+            return self._load_from_hdf5(hdf5_path, normalize)
+
+        # Try TEXMEX format
+        if base_path.exists() and query_path.exists():
+            print("Loading SIFT1M from TEXMEX format...")
+            X_train = read_fvecs(str(base_path))
+            X_test = read_fvecs(str(query_path))
+
+            y_train = np.zeros(len(X_train), dtype=np.int32)
+            y_test = np.zeros(len(X_test), dtype=np.int32)
+
+            if normalize:
+                X_train = X_train / (np.linalg.norm(X_train, axis=1, keepdims=True) + 1e-10)
+                X_test = X_test / (np.linalg.norm(X_test, axis=1, keepdims=True) + 1e-10)
+
+            print(f"  Base: {X_train.shape}, Query: {X_test.shape}")
+            return X_train.astype(np.float32), X_test.astype(np.float32), y_train, y_test
+
+        # Try to download HDF5 format from ann-benchmarks
+        if auto_download:
+            hdf5_url = "https://ann-benchmarks.com/sift-128-euclidean.hdf5"
+            print(f"Attempting to download SIFT1M (~500MB)...")
+
+            if self._download_file(hdf5_url, hdf5_path):
+                return self._load_from_hdf5(hdf5_path, normalize)
+
+        # Fallback instructions
+        print(f"SIFT1M not found. Download options:")
+        print(f"  Option 1: wget https://ann-benchmarks.com/sift-128-euclidean.hdf5 -P {self.data_dir}")
+        print(f"  Option 2: Download from TEXMEX corpus and extract to {sift_dir}")
+        print("\nUsing synthetic data instead.")
+        return self._load_synthetic_clustered(n=100000, d=128, n_clusters=100)
+
+    def _load_from_hdf5(
+        self,
+        hdf5_path: Path,
+        normalize: bool = False
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Load dataset from ANN-benchmarks HDF5 format."""
+        try:
+            import h5py
+        except ImportError:
+            print("h5py not installed. Install with: pip install h5py")
+            return self._load_synthetic_clustered(n=100000, d=128, n_clusters=100)
+
+        print(f"Loading from HDF5: {hdf5_path}")
+        with h5py.File(hdf5_path, 'r') as f:
+            X_train = np.array(f['train'])
+            X_test = np.array(f['test'])
+
+        y_train = np.zeros(len(X_train), dtype=np.int32)
+        y_test = np.zeros(len(X_test), dtype=np.int32)
+
+        if normalize:
+            X_train = X_train / (np.linalg.norm(X_train, axis=1, keepdims=True) + 1e-10)
+            X_test = X_test / (np.linalg.norm(X_test, axis=1, keepdims=True) + 1e-10)
+
+        print(f"  Base: {X_train.shape}, Query: {X_test.shape}")
+        return X_train.astype(np.float32), X_test.astype(np.float32), y_train, y_test
+
+    def _load_gist1m(
+        self,
+        normalize: bool = False,
+        auto_download: bool = True
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Load GIST1M dataset.
+
+        GIST1M: 1,000,000 GIST descriptors (960-d)
+        - High-dimensional scene descriptors
+        - More challenging due to dimensionality
+
+        Supports two formats:
+        1. TEXMEX .fvecs format (gist/ directory)
+        2. ANN-benchmarks HDF5 format (gist-960-euclidean.hdf5)
+        """
+        gist_dir = self.data_dir / 'gist'
+        hdf5_path = self.data_dir / 'gist-960-euclidean.hdf5'
+
+        base_path = gist_dir / 'gist_base.fvecs'
+        query_path = gist_dir / 'gist_query.fvecs'
+
+        # Try HDF5 format first
+        if hdf5_path.exists():
+            return self._load_from_hdf5(hdf5_path, normalize)
+
+        # Try TEXMEX format
+        if base_path.exists() and query_path.exists():
+            print("Loading GIST1M from TEXMEX format...")
+            X_train = read_fvecs(str(base_path))
+            X_test = read_fvecs(str(query_path))
+
+            y_train = np.zeros(len(X_train), dtype=np.int32)
+            y_test = np.zeros(len(X_test), dtype=np.int32)
+
+            if normalize:
+                X_train = X_train / (np.linalg.norm(X_train, axis=1, keepdims=True) + 1e-10)
+                X_test = X_test / (np.linalg.norm(X_test, axis=1, keepdims=True) + 1e-10)
+
+            print(f"  Base: {X_train.shape}, Query: {X_test.shape}")
+            return X_train.astype(np.float32), X_test.astype(np.float32), y_train, y_test
+
+        # Try to download HDF5 format
+        if auto_download:
+            hdf5_url = "https://ann-benchmarks.com/gist-960-euclidean.hdf5"
+            print(f"Attempting to download GIST1M (~4GB)...")
+
+            if self._download_file(hdf5_url, hdf5_path):
+                return self._load_from_hdf5(hdf5_path, normalize)
+
+        # Fallback
+        print(f"GIST1M not found. Download options:")
+        print(f"  wget https://ann-benchmarks.com/gist-960-euclidean.hdf5 -P {self.data_dir}")
+        print("\nUsing synthetic data instead.")
+        return self._load_synthetic_clustered(n=100000, d=960, n_clusters=100)
+
     def get_dataset_info(self, dataset_name: str) -> Dict[str, Any]:
         """Get metadata about a dataset."""
         info = {
@@ -480,6 +697,20 @@ class DataLoader:
                 'dims': 128,
                 'n_classes': 0,
                 'description': 'Uniform random data (hard case)'
+            },
+            'sift1m': {
+                'n_train': 1000000,
+                'n_test': 10000,
+                'dims': 128,
+                'n_classes': 0,
+                'description': 'SIFT visual descriptors (TEXMEX)'
+            },
+            'gist1m': {
+                'n_train': 1000000,
+                'n_test': 1000,
+                'dims': 960,
+                'n_classes': 0,
+                'description': 'GIST scene descriptors (TEXMEX)'
             }
         }
         return info.get(dataset_name, {})

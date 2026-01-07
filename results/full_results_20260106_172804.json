@@ -1,0 +1,498 @@
+{
+  "mnist": {
+    "des_knn_pca": {
+      "1": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22748278935851937,
+            "speedup_std": 0.0066242584906591505,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 1.6978010535240173e-06,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.227285675490686,
+            "speedup_std": 0.0064492936232171715,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 1.5371479094028473e-06,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "5": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.2287116729796934,
+            "speedup_std": 0.0063390815563641525,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 7.580965757369995e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22925156969208993,
+            "speedup_std": 0.006816974251706874,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 6.998889148235321e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "10": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.2267649981049982,
+            "speedup_std": 0.006099392579549771,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 8.307397365570068e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22956728788446998,
+            "speedup_std": 0.006554940055366448,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 7.408671081066132e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "20": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.2275641160872845,
+            "speedup_std": 0.007362075597056168,
+            "dist_ratio": 0.8234709333333333,
+            "build_time": 6.617046892642975e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.2275259122151313,
+            "speedup_std": 0.0071587111803786034,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 1.0742805898189545e-06,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "50": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22663719611841288,
+            "speedup_std": 0.0069858459292669465,
+            "dist_ratio": 0.8235136,
+            "build_time": 6.877817213535309e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.2277783068273177,
+            "speedup_std": 0.00798487868483653,
+            "dist_ratio": 0.8235050666666666,
+            "build_time": 9.08970832824707e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      }
+    }
+  },
+  "fashion_mnist": {
+    "des_knn_pca": {
+      "1": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22676771265315568,
+            "speedup_std": 0.007499561842570609,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 6.477348506450653e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22882152036111897,
+            "speedup_std": 0.0074928671252109105,
+            "dist_ratio": 0.8234666666666667,
+            "build_time": 7.310882210731506e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "5": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22878829293577851,
+            "speedup_std": 0.007584997661082918,
+            "dist_ratio": 0.8234752000000001,
+            "build_time": 7.362104952335358e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22901274677471117,
+            "speedup_std": 0.007673948681837981,
+            "dist_ratio": 0.8236517333333333,
+            "build_time": 7.981434464454651e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "10": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.23137672426945405,
+            "speedup_std": 0.007364631615228761,
+            "dist_ratio": 0.8234794666666666,
+            "build_time": 7.641501724720001e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.2302820976470516,
+            "speedup_std": 0.008453807038134765,
+            "dist_ratio": 0.8238410666666667,
+            "build_time": 1.0989606380462646e-06,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "20": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.23167707823838113,
+            "speedup_std": 0.007864683341126378,
+            "dist_ratio": 0.8234965333333334,
+            "build_time": 7.2503462433815e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22507842986162466,
+            "speedup_std": 0.010412091010435703,
+            "dist_ratio": 0.8236773333333334,
+            "build_time": 7.566995918750763e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "50": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.22666971007282544,
+            "speedup_std": 0.010220269368173735,
+            "dist_ratio": 0.8237312,
+            "build_time": 6.449408829212189e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.23838829766050074,
+            "speedup_std": 0.008478775478173502,
+            "dist_ratio": 0.8236757333333333,
+            "build_time": 7.231719791889191e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      }
+    }
+  },
+  "synthetic_clustered": {
+    "des_knn_pca": {
+      "1": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07780786525132481,
+            "speedup_std": 0.005423651361843333,
+            "dist_ratio": 0.8227441777777778,
+            "build_time": 7.399357855319977e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07617554739581084,
+            "speedup_std": 0.003921951982231375,
+            "dist_ratio": 0.822738488888889,
+            "build_time": 6.170012056827545e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "5": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07577699532506256,
+            "speedup_std": 0.004485317041985496,
+            "dist_ratio": 0.8244252444444444,
+            "build_time": 7.078051567077637e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07542667839957588,
+            "speedup_std": 0.0046933574700298505,
+            "dist_ratio": 0.8244878222222222,
+            "build_time": 6.449408829212189e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "10": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07492859289458358,
+            "speedup_std": 0.005210644242976072,
+            "dist_ratio": 0.8248519111111112,
+            "build_time": 1.1110678315162659e-06,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 0.9999,
+            "recall_std": 0.0031606961258558207,
+            "speedup_mean": 0.07429979881053436,
+            "speedup_std": 0.003808100170767671,
+            "dist_ratio": 0.8248661333333334,
+            "build_time": 6.309710443019867e-07,
+            "failure_rate_99": 0.001
+          }
+        ]
+      },
+      "20": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07542521693901628,
+            "speedup_std": 0.005527048293118329,
+            "dist_ratio": 0.8249088,
+            "build_time": 9.122304618358612e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07522748574997254,
+            "speedup_std": 0.0036985266186701417,
+            "dist_ratio": 0.8248974222222222,
+            "build_time": 7.292255759239197e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "50": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07476495212130249,
+            "speedup_std": 0.003937390446305228,
+            "dist_ratio": 0.8249656888888889,
+            "build_time": 7.469207048416138e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.07427818599877346,
+            "speedup_std": 0.005224524433138043,
+            "dist_ratio": 0.8249713777777777,
+            "build_time": 6.877817213535309e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      }
+    }
+  },
+  "synthetic_uniform": {
+    "des_knn_pca": {
+      "1": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.05700993297460369,
+            "speedup_std": 0.003055554958683257,
+            "dist_ratio": 0.8292664888888889,
+            "build_time": 1.0970979928970337e-06,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.057291556627164036,
+            "speedup_std": 0.0047211765684319566,
+            "dist_ratio": 0.8307598222222223,
+            "build_time": 6.598420441150665e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "5": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.055115760709930926,
+            "speedup_std": 0.0041258614594925575,
+            "dist_ratio": 0.8474396444444444,
+            "build_time": 7.604248821735382e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.05573096347728358,
+            "speedup_std": 0.003391494580712833,
+            "dist_ratio": 0.8480824888888889,
+            "build_time": 6.793998181819916e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "10": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.053789264288103836,
+            "speedup_std": 0.0031024911268097972,
+            "dist_ratio": 0.8604529777777777,
+            "build_time": 8.330680429935455e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.05494020153231207,
+            "speedup_std": 0.003359086279408631,
+            "dist_ratio": 0.8612181333333333,
+            "build_time": 9.164214134216309e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "20": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.05304771967582991,
+            "speedup_std": 0.0036832160952708407,
+            "dist_ratio": 0.8786033777777779,
+            "build_time": 6.360933184623718e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.053075174803374196,
+            "speedup_std": 0.003616122698186412,
+            "dist_ratio": 0.8796188444444444,
+            "build_time": 8.028000593185425e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      },
+      "50": {
+        "default": [
+          {
+            "seed": 42,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.0516703258303648,
+            "speedup_std": 0.0033679913167497626,
+            "dist_ratio": 0.9027811555555556,
+            "build_time": 7.511116564273834e-07,
+            "failure_rate_99": 0.0
+          },
+          {
+            "seed": 123,
+            "recall_mean": 1.0,
+            "recall_std": 0.0,
+            "speedup_mean": 0.050961170660934314,
+            "speedup_std": 0.002972764014138504,
+            "dist_ratio": 0.9039843555555556,
+            "build_time": 6.402842700481415e-07,
+            "failure_rate_99": 0.0
+          }
+        ]
+      }
+    }
+  }
+}
