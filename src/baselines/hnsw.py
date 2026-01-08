@@ -262,8 +262,8 @@ class HNSWKNN(BaseKNNSearcher):
         Beam width during construction.
     ef : int, default=10
         Beam width during search.
-    use_library : bool, default=False
-        Whether to use hnswlib (if installed).
+    use_library : bool, default=True
+        Whether to use hnswlib (fast baseline). Falls back to pure Python if False.
     random_state : int or None, default=None
         Random seed.
     """
@@ -274,7 +274,7 @@ class HNSWKNN(BaseKNNSearcher):
         M: int = 16,
         ef_construction: int = 200,
         ef: int = 10,
-        use_library: bool = False,
+        use_library: bool = True,
         random_state: Optional[int] = None
     ):
         super().__init__(X)
@@ -294,26 +294,21 @@ class HNSWKNN(BaseKNNSearcher):
         if self.use_library:
             try:
                 import hnswlib
+            except ImportError as exc:
+                raise ImportError(
+                    "hnswlib is required for the fast HNSW baseline. "
+                    "Install it or set use_library=False to use the pure Python reference."
+                ) from exc
 
-                self.index = hnswlib.Index(space='l2', dim=self.d)
-                self.index.init_index(
-                    max_elements=self.n,
-                    ef_construction=self.ef_construction,
-                    M=self.M
-                )
-                self.index.add_items(self.X, np.arange(self.n))
-                self.index.set_ef(self.ef)
-                self._using_library = True
-
-            except ImportError:
-                self.index = HNSWIndexPure(
-                    d=self.d,
-                    M=self.M,
-                    ef_construction=self.ef_construction,
-                    random_state=self.random_state
-                )
-                self.index.fit(self.X)
-                self._using_library = False
+            self.index = hnswlib.Index(space='l2', dim=self.d)
+            self.index.init_index(
+                max_elements=self.n,
+                ef_construction=self.ef_construction,
+                M=self.M
+            )
+            self.index.add_items(self.X, np.arange(self.n))
+            self.index.set_ef(self.ef)
+            self._using_library = True
         else:
             self.index = HNSWIndexPure(
                 d=self.d,

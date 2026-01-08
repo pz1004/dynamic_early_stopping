@@ -208,7 +208,7 @@ class AnnoyKNN(BaseKNNSearcher):
         Number of nodes to inspect during query. If None, uses n_trees * k.
     distance_metric : str, default='euclidean'
         Distance metric: 'euclidean', 'angular' (cosine), 'manhattan'.
-    use_library : bool, default=False
+    use_library : bool, default=True
         Whether to use the actual annoy library (if installed).
     random_state : int or None, default=None
         Random seed.
@@ -221,7 +221,7 @@ class AnnoyKNN(BaseKNNSearcher):
         max_leaf_size: int = 100,
         search_k: Optional[int] = None,
         distance_metric: str = 'euclidean',
-        use_library: bool = False,
+        use_library: bool = True,
         random_state: Optional[int] = None
     ):
         super().__init__(X)

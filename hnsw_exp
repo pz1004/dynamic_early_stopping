@@ -1,0 +1,238 @@
+(des) pz1004@pz1004-1:~/Workspaces/dynamic_early_stopping/des_knn$ for ef in 16 32 64; do   python experiments/run_experiments.py --dataset mnist --method hnsw --k 10 --n_queries 200 --ef $ef; done
+
+============================================================
+Running hnsw on mnist
+============================================================
+Loading dataset: mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 96.61 ms
+Building hnsw...
+  Build time: 2.24 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9730 +/- 0.0753
+  Speedup: 1108.42x +/- 227.44
+  Scan Ratio: 0.0%
+  Dist ratio: 0.0003
+
+Results saved to: results/results_mnist_k10_20260108_145152.json
+
+============================================================
+Running hnsw on mnist
+============================================================
+Loading dataset: mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 96.37 ms
+Building hnsw...
+  Build time: 2.24 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9955 +/- 0.0230
+  Speedup: 711.06x +/- 153.81
+  Scan Ratio: 0.1%
+  Dist ratio: 0.0005
+
+Results saved to: results/results_mnist_k10_20260108_145218.json
+
+============================================================
+Running hnsw on mnist
+============================================================
+Loading dataset: mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 97.32 ms
+Building hnsw...
+  Build time: 2.22 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9990 +/- 0.0099
+  Speedup: 521.01x +/- 121.91
+  Scan Ratio: 0.1%
+  Dist ratio: 0.0011
+
+Results saved to: results/results_mnist_k10_20260108_145309.json
+
+
+
+(des) pz1004@pz1004-1:~/Workspaces/dynamic_early_stopping/des_knn$ for ef in 16 32 64 128; do   python experiments/run_experiments.py --dataset fashion_mnist --method hnsw --k 10 --n_queries 200 --ef $ef; done
+
+============================================================
+Running hnsw on fashion_mnist
+============================================================
+Loading dataset: fashion_mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 76.26 ms
+Building hnsw...
+  Build time: 1.87 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9680 +/- 0.0968
+  Speedup: 551.73x +/- 92.99
+  Scan Ratio: 0.0%
+  Dist ratio: 0.0003
+
+Results saved to: results/results_fashion_mnist_k10_20260108_132250.json
+
+============================================================
+Running hnsw on fashion_mnist
+============================================================
+Loading dataset: fashion_mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 94.15 ms
+Building hnsw...
+  Build time: 4.14 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9945 +/- 0.0249
+  Speedup: 592.88x +/- 289.01
+  Scan Ratio: 0.1%
+  Dist ratio: 0.0005
+
+Results saved to: results/results_fashion_mnist_k10_20260108_132318.json
+
+============================================================
+Running hnsw on fashion_mnist
+============================================================
+Loading dataset: fashion_mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 76.50 ms
+Building hnsw...
+  Build time: 1.67 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9990 +/- 0.0099
+  Speedup: 426.44x +/- 73.56
+  Scan Ratio: 0.1%
+  Dist ratio: 0.0011
+
+Results saved to: results/results_fashion_mnist_k10_20260108_132339.json
+
+============================================================
+Running hnsw on fashion_mnist
+============================================================
+Loading dataset: fashion_mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 72.69 ms
+Building hnsw...
+  Build time: 1.55 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9995 +/- 0.0071
+  Speedup: 270.05x +/- 48.12
+  Scan Ratio: 0.2%
+  Dist ratio: 0.0021
+
+Results saved to: results/results_fashion_mnist_k10_20260108_132401.json
+
+
+(des) pz1004@pz1004-1:~/Workspaces/dynamic_early_stopping/des_knn$ for ef in 250 300 350; do   python experiments/run_experiments.py --dataset sift1m --method hnsw --k 10 --n_queries 200 --ef $ef; done
+
+============================================================
+Running hnsw on sift1m
+============================================================
+Loading dataset: sift1m
+Loading from HDF5: data/sift-128-euclidean.hdf5
+  Base: (1000000, 128), Query: (10000, 128)
+  Training set: (1000000, 128)
+  Test set: (10000, 128)
+Computing ground truth...
+  Mean exact query time: 290.04 ms
+Building hnsw...
+  Build time: 24.27 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9980 +/- 0.0140
+  Speedup: 718.77x +/- 157.01
+  Scan Ratio: 0.0%
+  Dist ratio: 0.0003
+
+Results saved to: results/results_sift1m_k10_20260108_151522.json
+
+============================================================
+Running hnsw on sift1m
+============================================================
+Loading dataset: sift1m
+Loading from HDF5: data/sift-128-euclidean.hdf5
+  Base: (1000000, 128), Query: (10000, 128)
+  Training set: (1000000, 128)
+  Test set: (10000, 128)
+Computing ground truth...
+  Mean exact query time: 296.36 ms
+Building hnsw...
+  Build time: 25.11 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9990 +/- 0.0099
+  Speedup: 626.44x +/- 138.72
+  Scan Ratio: 0.0%
+  Dist ratio: 0.0003
+
+Results saved to: results/results_sift1m_k10_20260108_151648.json
+
+============================================================
+Running hnsw on sift1m
+============================================================
+Loading dataset: sift1m
+Loading from HDF5: data/sift-128-euclidean.hdf5
+  Base: (1000000, 128), Query: (10000, 128)
+  Training set: (1000000, 128)
+  Test set: (10000, 128)
+Computing ground truth...
+  Mean exact query time: 300.78 ms
+Building hnsw...
+  Build time: 25.70 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9995 +/- 0.0071
+  Speedup: 541.39x +/- 122.54
+  Scan Ratio: 0.0%
+  Dist ratio: 0.0003
+
+Results saved to: results/results_sift1m_k10_20260108_151815.json
+
+
+
+

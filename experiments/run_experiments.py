@@ -25,6 +25,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.des_knn import DESKNNSearcher
+from src.des_knn_guarantee import DESKNNSearcherGuarantee
 from src.baselines import (
     ExactBruteForceKNN,
     KDTreeKNN,
@@ -62,6 +63,7 @@ METHODS = [
     'annoy',
     'hnsw',
     'des_knn',
+    'des_knn_guarantee',
     'des_knn_pca',
     'des_knn_cluster'
 ]
@@ -141,6 +143,13 @@ def get_method(method_name: str, X: np.ndarray, params: Dict[str, Any]):
             tolerance=params.get('tolerance', 0.5),
             confidence=params.get('confidence', 0.99),
             max_cv=params.get('max_cv', None),
+            min_samples=params.get('min_samples', None),
+            block_size=params.get('block_size', 256)
+        ),
+        'des_knn_guarantee': lambda: DESKNNSearcherGuarantee(
+            X,
+            tolerance=params.get('tolerance', 0.5),
+            confidence=params.get('confidence', 0.99),
             min_samples=params.get('min_samples', None),
             block_size=params.get('block_size', 256)
         ),
@@ -275,6 +284,7 @@ def run_experiment(
     all_dist_counts = []
     all_query_times = []
     all_scan_ratios = []
+    all_expected_misses = [] if is_des_method else None
 
     if n_jobs == 1:
         for i, q in enumerate(queries):
@@ -283,9 +293,11 @@ def run_experiment(
             if is_des_method:
                 neighbors, distances, dist_count, stats = searcher.query(q, k, return_stats=True)
                 scan_ratio = stats.get('scan_ratio', dist_count / len(X_train))
+                expected_misses = stats.get('expected_misses', None)
             else:
                 neighbors, distances, dist_count = searcher.query(q, k)
                 scan_ratio = dist_count / len(X_train)
+                expected_misses = None
 
             query_time = time.perf_counter() - t0
 
@@ -297,6 +309,8 @@ def run_experiment(
             all_dist_counts.append(dist_count)
             all_query_times.append(query_time)
             all_scan_ratios.append(scan_ratio)
+            if is_des_method:
+                all_expected_misses.append(expected_misses)
 
             if verbose and (i + 1) % 100 == 0:
                 print(f"  Processed {i + 1}/{n_queries} queries...")
@@ -308,29 +322,40 @@ def run_experiment(
             if is_des_method:
                 neighbors, distances, dist_count, stats = searcher.query(q, k, return_stats=True)
                 scan_ratio = stats.get('scan_ratio', dist_count / len(X_train))
+                expected_misses = stats.get('expected_misses', None)
             else:
                 neighbors, distances, dist_count = searcher.query(q, k)
                 scan_ratio = dist_count / len(X_train)
+                expected_misses = None
 
             query_time = time.perf_counter() - t0
             recall = recall_at_k(neighbors, gt_neighbors)
             speedup = mean_exact_time / query_time if query_time > 0 else float('inf')
-            return recall, speedup, dist_count, query_time, scan_ratio
+            return recall, speedup, dist_count, query_time, scan_ratio, expected_misses
 
         results = Parallel(n_jobs=n_jobs, prefer="threads")(
             delayed(_run_one)(q, ground_truth_neighbors[i]) for i, q in enumerate(queries)
         )
 
-        for recall, speedup, dist_count, query_time, scan_ratio in results:
+        for recall, speedup, dist_count, query_time, scan_ratio, expected_misses in results:
             all_recalls.append(recall)
             all_speedups.append(speedup)
             all_dist_counts.append(dist_count)
             all_query_times.append(query_time)
             all_scan_ratios.append(scan_ratio)
+            if is_des_method:
+                all_expected_misses.append(expected_misses)
 
     # Aggregate metrics
     metrics = aggregate_metrics(all_recalls, all_speedups, all_dist_counts, len(X_train))
     metrics['scan_ratio'] = {'mean': np.mean(all_scan_ratios), 'std': np.std(all_scan_ratios)}
+    if is_des_method and all_expected_misses:
+        expected_misses_arr = np.array(all_expected_misses, dtype=np.float32)
+        metrics['expected_misses'] = {
+            'mean': float(np.mean(expected_misses_arr)),
+            'std': float(np.std(expected_misses_arr)),
+            'median': float(np.median(expected_misses_arr)),
+        }
 
     results = {
         'dataset': dataset_name,
@@ -352,6 +377,8 @@ def run_experiment(
             'scan_ratios': all_scan_ratios
         }
     }
+    if is_des_method and all_expected_misses:
+        results['per_query']['expected_misses'] = all_expected_misses
 
     if verbose:
         print("\nResults:")
@@ -552,6 +579,7 @@ Examples:
     parser.add_argument('--n_clusters', type=int, default=100, help='Cluster count')
     parser.add_argument('--n_tables', type=int, default=10, help='LSH tables')
     parser.add_argument('--n_trees', type=int, default=10, help='Annoy trees')
+    parser.add_argument('--search_k', type=int, default=None, help='Annoy search_k')
     parser.add_argument('--ef', type=int, default=10, help='HNSW ef')
 
     args = parser.parse_args()
@@ -582,6 +610,7 @@ Examples:
             'n_clusters': args.n_clusters,
             'n_tables': args.n_tables,
             'n_trees': args.n_trees,
+            'search_k': args.search_k,
             'ef': args.ef,
         }
 

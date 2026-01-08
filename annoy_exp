@@ -1,0 +1,287 @@
+(des) pz1004@pz1004-1:~/Workspaces/dynamic_early_stopping/des_knn$ for sk in 13000 14000 15000; do   python experiments/run_experiments.py --dataset mnist --method annoy --k 10 --n_queries 200 --n_trees 50 --search_k $sk; done
+
+============================================================
+Running annoy on mnist
+============================================================
+Loading dataset: mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 103.08 ms
+Building annoy...
+  Build time: 3.14 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9985 +/- 0.0122
+  Speedup: 60.71x +/- 12.61
+  Scan Ratio: 21.7%
+  Dist ratio: 0.2167
+
+Results saved to: results/results_mnist_k10_20260108_135346.json
+
+============================================================
+Running annoy on mnist
+============================================================
+Loading dataset: mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 102.12 ms
+Building annoy...
+  Build time: 3.13 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9990 +/- 0.0099
+  Speedup: 57.95x +/- 12.22
+  Scan Ratio: 23.3%
+  Dist ratio: 0.2333
+
+Results saved to: results/results_mnist_k10_20260108_135414.json
+
+============================================================
+Running annoy on mnist
+============================================================
+Loading dataset: mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 101.38 ms
+Building annoy...
+  Build time: 3.12 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9990 +/- 0.0099
+  Speedup: 54.90x +/- 11.52
+  Scan Ratio: 25.0%
+  Dist ratio: 0.2500
+
+Results saved to: results/results_mnist_k10_20260108_135442.json
+
+
+(des) pz1004@pz1004-1:~/Workspaces/dynamic_early_stopping/des_knn$ for sk in 19000 20000 25000; do   python experiments/run_experiments.py --dataset fashion_mnist --method annoy --k 10 --n_queries 200 --n_trees 50 --search_k $sk; done
+
+============================================================
+Running annoy on fashion_mnist
+============================================================
+Loading dataset: fashion_mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 104.31 ms
+Building annoy...
+  Build time: 3.10 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9985 +/- 0.0122
+  Speedup: 64.93x +/- 10.36
+  Scan Ratio: 31.7%
+  Dist ratio: 0.3167
+
+Results saved to: results/results_fashion_mnist_k10_20260108_135917.json
+
+============================================================
+Running annoy on fashion_mnist
+============================================================
+Loading dataset: fashion_mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 84.06 ms
+Building annoy...
+  Build time: 3.08 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9990 +/- 0.0099
+  Speedup: 48.01x +/- 6.97
+  Scan Ratio: 33.3%
+  Dist ratio: 0.3333
+
+Results saved to: results/results_fashion_mnist_k10_20260108_135942.json
+
+============================================================
+Running annoy on fashion_mnist
+============================================================
+Loading dataset: fashion_mnist
+  Training set: (60000, 784)
+  Test set: (10000, 784)
+Computing ground truth...
+  Mean exact query time: 82.92 ms
+Building annoy...
+  Build time: 3.01 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9990 +/- 0.0099
+  Speedup: 40.94x +/- 6.01
+  Scan Ratio: 41.7%
+  Dist ratio: 0.4167
+
+Results saved to: results/results_fashion_mnist_k10_20260108_140007.json
+
+
+(des) pz1004@pz1004-1:~/Workspaces/dynamic_early_stopping/des_knn$ for sk in 60000 70000 80000; do   python experiments/run_experiments.py --dataset sift1m --method annoy --k 10 --n_queries 200 --n_trees 50 --search_k $sk; done
+
+============================================================
+Running annoy on sift1m
+============================================================
+Loading dataset: sift1m
+Loading from HDF5: data/sift-128-euclidean.hdf5
+  Base: (1000000, 128), Query: (10000, 128)
+  Training set: (1000000, 128)
+  Test set: (10000, 128)
+Computing ground truth...
+  Mean exact query time: 301.56 ms
+Building annoy...
+  Build time: 10.55 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9960 +/- 0.0196
+  Speedup: 66.97x +/- 6.39
+  Scan Ratio: 6.0%
+  Dist ratio: 0.0600
+
+Results saved to: results/results_sift1m_k10_20260108_143720.json
+
+============================================================
+Running annoy on sift1m
+============================================================
+Loading dataset: sift1m
+Loading from HDF5: data/sift-128-euclidean.hdf5
+  Base: (1000000, 128), Query: (10000, 128)
+  Training set: (1000000, 128)
+  Test set: (10000, 128)
+Computing ground truth...
+  Mean exact query time: 300.71 ms
+Building annoy...
+  Build time: 10.74 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9975 +/- 0.0156
+  Speedup: 58.04x +/- 5.30
+  Scan Ratio: 7.0%
+  Dist ratio: 0.0700
+
+Results saved to: results/results_sift1m_k10_20260108_143833.json
+
+============================================================
+Running annoy on sift1m
+============================================================
+Loading dataset: sift1m
+Loading from HDF5: data/sift-128-euclidean.hdf5
+  Base: (1000000, 128), Query: (10000, 128)
+  Training set: (1000000, 128)
+  Test set: (10000, 128)
+Computing ground truth...
+  Mean exact query time: 301.68 ms
+Building annoy...
+  Build time: 10.31 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9990 +/- 0.0099
+  Speedup: 51.30x +/- 4.77
+  Scan Ratio: 8.0%
+  Dist ratio: 0.0800
+
+Results saved to: results/results_sift1m_k10_20260108_143946.json
+
+
+(des) pz1004@pz1004-1:~/Workspaces/dynamic_early_stopping/des_knn$ for sk in 300000 400000 500000; do   python experiments/run_experiments.py --dataset gist1m --method annoy --k 10 --n_queries 200 --n_trees 50 --search_k $sk; done
+
+============================================================
+Running annoy on gist1m
+============================================================
+Loading dataset: gist1m
+Loading from HDF5: data/gist-960-euclidean.hdf5
+  Base: (1000000, 960), Query: (1000, 960)
+  Training set: (1000000, 960)
+  Test set: (1000, 960)
+Computing ground truth...
+  Mean exact query time: 2756.89 ms
+Building annoy...
+  Build time: 71.49 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9850 +/- 0.0409
+  Speedup: 66.55x +/- 12.71
+  Scan Ratio: 30.0%
+  Dist ratio: 0.3000
+
+Results saved to: results/results_gist1m_k10_20260108_153112.json
+
+============================================================
+Running annoy on gist1m
+============================================================
+Loading dataset: gist1m
+Loading from HDF5: data/gist-960-euclidean.hdf5
+  Base: (1000000, 960), Query: (1000, 960)
+  Training set: (1000000, 960)
+  Test set: (1000, 960)
+Computing ground truth...
+  Mean exact query time: 2874.94 ms
+Building annoy...
+  Build time: 69.91 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9885 +/- 0.0377
+  Speedup: 54.08x +/- 10.19
+  Scan Ratio: 40.0%
+  Dist ratio: 0.4000
+
+Results saved to: results/results_gist1m_k10_20260108_154211.json
+
+============================================================
+Running annoy on gist1m
+============================================================
+Loading dataset: gist1m
+Loading from HDF5: data/gist-960-euclidean.hdf5
+  Base: (1000000, 960), Query: (1000, 960)
+  Training set: (1000000, 960)
+  Test set: (1000, 960)
+Computing ground truth...
+  Mean exact query time: 3398.15 ms
+Building annoy...
+  Build time: 71.23 s
+Running 200 queries...
+  Processed 100/200 queries...
+  Processed 200/200 queries...
+
+Results:
+  Recall@10: 0.9905 +/- 0.0355
+  Speedup: 53.23x +/- 9.85
+  Scan Ratio: 50.0%
+  Dist ratio: 0.5000
+
+Results saved to: results/results_gist1m_k10_20260108_155458.json
+

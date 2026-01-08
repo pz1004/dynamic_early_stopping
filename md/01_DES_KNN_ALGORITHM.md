@@ -4,410 +4,275 @@
 
 ## Overview
 
-Implements the Dynamic Early Stopping k-Nearest Neighbors (DES-kNN) algorithm using the Beta-Geometric "Gap" model. This approach uses O(1) statistical bounds based on inter-arrival times of neighbor updates to determine when to stop searching.
+`DESKNNSearcher` implements **Dynamic Early Stopping k-NN (DES‑kNN)** using a lightweight **Beta‑Geometric “gap” model**. It scans points in some order, maintains a best‑k heap, and checks a confidence‑calibrated stopping criterion that estimates how many better neighbors might remain unseen.
 
-## Required Imports
+The current implementation is optimized for Python by:
+
+- Scanning in **blocks** (`block_size`) and computing distances with vectorized NumPy operations.
+- Separating **ordering** (via a `sorter`) from **stopping** (via `estimate_future_matches()`).
+
+## Key Modules Used
 
 ```python
 import numpy as np
 import heapq
-from typing import Tuple, List, Optional, Dict, Any
+from typing import Tuple, Optional, Dict
+
 from .statistics import estimate_future_matches
+from .sorting import BaseSorter, PCASorter  # other sorters (e.g., ClusterSorter) live in sorting.py
 from joblib import Parallel, delayed
 ```
 
-## Class: DESKNNSearcher
+## Class: `DESKNNSearcher`
 
-### Constructor
+### Constructor (matches `src/des_knn.py`)
 
-```python
-class DESKNNSearcher:
-    """
-    Dynamic Early Stopping k-Nearest Neighbors Searcher.
+Parameters of note:
 
-    Uses a Beta-Geometric statistical model to estimate the expected number
-    of missed neighbors based on the "gap" (number of samples) since the
-    last improvement to the k-NN set.
+- `tolerance`: acceptable expected number of missed neighbors (higher stops earlier).
+- `confidence`: confidence level used to upper bound the success probability.
+- `min_samples`: don’t stop before scanning at least this many points.
+- `max_cv`: optional safety check to avoid stopping when the current k distances are highly dispersed.
+- `sorter`: controls the scan order (random by default via `BaseSorter`).
+- `block_size`: vectorization granularity; stopping is checked once per block.
 
-    Parameters
-    ----------
-    X : np.ndarray of shape (n_samples, n_features)
-        The dataset to search.
-    tolerance : float, default=0.5
-        The acceptable expected number of missed neighbors.
-        Lower values (e.g., 0.1) are stricter (higher recall, slower).
-        Higher values (e.g., 1.0) are faster (lower recall).
-    confidence : float, default=0.99
-        Confidence level for the statistical bound (0.0 to 1.0).
-    min_samples : int or None, default=None
-        Minimum samples to scan before attempting to stop.
-        If None, uses max(k + 50, 1% of n).
-    max_cv : float or None, default=None
-        Maximum coefficient of variation for neighbor distances.
-        If set, prevents stopping when distances are too dispersed.
-    distance_metric : str, default='euclidean'
-        Distance metric: 'euclidean', 'cosine', or 'manhattan'.
-    random_state : int or None, default=None
-        Random seed for reproducibility.
-    """
+### Fit
 
-    def __init__(
-        self,
-        X: np.ndarray,
-        tolerance: float = 0.5,
-        confidence: float = 0.99,
-        min_samples: Optional[int] = None,
-        max_cv: Optional[float] = None,
-        distance_metric: str = 'euclidean',
-        random_state: Optional[int] = None,
-    ):
-        self.X = np.asarray(X, dtype=np.float32)
-        self.n, self.d = self.X.shape
-        self.tolerance = tolerance
-        self.confidence = confidence
-        self.min_samples = min_samples
-        self.max_cv = max_cv
-        self.distance_metric = distance_metric
-        self.random_state = random_state
+`fit()` is a no‑op for API consistency. Some sorters (e.g., PCA) are fit during `__init__` so `query()` can assume ordering is ready.
 
-        # Precompute for cosine efficiency
-        if distance_metric == 'cosine':
-            self.norms = np.linalg.norm(X, axis=1, keepdims=True)
-            self.X_normalized = X / (self.norms + 1e-10)
-        else:
-            self.norms = None
-            self.X_normalized = None
+## Core Method: `query()`
 
-        # Set random generator
-        self.rng = np.random.default_rng(random_state)
-```
-
-### Core Query Method
+Signature:
 
 ```python
-def query(
-    self,
-    q: np.ndarray,
-    k: int,
-    return_distances: bool = True,
-    return_stats: bool = False
-) -> Tuple[np.ndarray, np.ndarray, int] | Tuple[np.ndarray, np.ndarray, int, Dict]:
-    """
-    Find k nearest neighbors with dynamic early stopping.
-
-    Parameters
-    ----------
-    q : np.ndarray of shape (n_features,)
-        Query point.
-    k : int
-        Number of neighbors to find.
-    return_distances : bool, default=True
-        Whether to return distances.
-    return_stats : bool, default=False
-        Whether to return detailed statistics.
-
-    Returns
-    -------
-    neighbors : np.ndarray of shape (k,)
-        Indices of k nearest neighbors.
-    distances : np.ndarray of shape (k,), optional
-        Distances to k nearest neighbors.
-    dist_count : int
-        Number of distance computations performed.
-    stats : dict, optional
-        Detailed statistics (if return_stats=True).
-    """
-    q = np.asarray(q, dtype=np.float32)
-    n = self.n
-
-    # Validate parameters
-    if k > n:
-        k = n
-
-    # Determine minimum samples to scan
-    if self.min_samples is not None:
-        min_scan = self.min_samples
-    else:
-        # Default: at least k+50 or 1% of data
-        min_scan = max(k + 50, int(0.01 * n))
-
-    min_scan = min(min_scan, n)
-
-    # Initialize Heap (max-heap via negation)
-    heap = []
-    d_k = np.inf
-
-    # Statistics Tracking
-    dist_count = 0
-    last_update_idx = 0
-
-    # Precompute query-specific values for distance
-    q_normalized = None
-    if self.distance_metric == 'cosine':
-        q_norm = np.linalg.norm(q)
-        q_normalized = q / (q_norm + 1e-10)
-
-    # Generate random search order
-    indices = self.rng.permutation(n)
-
-    # Localize for hot loop
-    compute_dist = self._compute_distance_fast
-    estimate_matches = estimate_future_matches
-    tolerance = self.tolerance
-    confidence = self.confidence
-
-    stopped_early = False
-    final_expected_misses = 0.0
-
-    # Main Search Loop
-    for i, idx in enumerate(indices):
-        # 1. Compute Distance
-        d = compute_dist(q, idx, q_normalized)
-        dist_count += 1
-
-        # 2. Update Heap
-        if len(heap) < k:
-            heapq.heappush(heap, (-d, idx))
-            if len(heap) == k:
-                d_k = -heap[0][0]
-                last_update_idx = i
-        elif d < d_k:
-            heapq.heapreplace(heap, (-d, idx))
-            d_k = -heap[0][0]
-            last_update_idx = i
-
-        # 3. Check Early Stopping
-        if i >= min_scan:
-            current_gap = i - last_update_idx
-
-            # Check 1: Large enough gap?
-            if current_gap > k:
-                remaining = n - 1 - i
-                expected_misses = estimate_matches(current_gap, remaining, confidence)
-
-                # Check 2: Statistical Convergence
-                if expected_misses < tolerance:
-
-                    # Check 3: Dispersion / Variance (Optional)
-                    should_stop = True
-                    if self.max_cv is not None:
-                        current_dists = np.array([-h[0] for h in heap])
-                        mean_d = np.mean(current_dists)
-
-                        if mean_d > 1e-9:
-                            std_d = np.std(current_dists)
-                            cv = std_d / mean_d
-                            if cv > self.max_cv:
-                                should_stop = False
-
-                    if should_stop:
-                        stopped_early = True
-                        final_expected_misses = expected_misses
-                        break
-
-    # Extract results (sort by distance ascending)
-    heap.sort(key=lambda x: -x[0])
-
-    neighbors = np.array([idx for _, idx in heap], dtype=np.int64)
-    distances = np.array([-d for d, _ in heap], dtype=np.float32)
-
-    if return_stats:
-        stats = {
-            'stopped_early': stopped_early,
-            'scan_ratio': dist_count / n,
-            'dist_count': dist_count,
-            'last_update_index': last_update_idx,
-            'final_gap': dist_count - 1 - last_update_idx,
-            'expected_misses': final_expected_misses if stopped_early else 0.0
-        }
-        if return_distances:
-            return neighbors, distances, dist_count, stats
-        return neighbors, dist_count, stats
-
-    if return_distances:
-        return neighbors, distances, dist_count
-    return neighbors, dist_count
+neighbors, distances, dist_count = searcher.query(q, k)
+neighbors, distances, dist_count, stats = searcher.query(q, k, return_stats=True)
 ```
 
-### Distance Computation
+What it does:
+
+1) Compute a scan order:
+- Default `BaseSorter` returns a random permutation (assumption‑aligned).
+- PCA/cluster sorters return a heuristic order (often faster in practice).
+
+2) Process points in blocks:
+- For each block: compute all distances in a vectorized batch.
+- Update a max‑heap (stored as negative distances) to keep best k.
+
+3) After `min_samples`, check the stopping rule once per block:
+
+- `gap = (current_position - last_update_index)`
+- If `gap > k` then compute `expected_misses = estimate_future_matches(gap, remaining, confidence)`
+- Stop when `expected_misses < tolerance` and (optionally) the CV check passes.
+
+Returned statistics (`return_stats=True`) include:
+
+- `scan_ratio`: `dist_count / n` (true fraction of distances computed by DES‑kNN)
+- `expected_misses`: the final bound value at the stop decision
+- `stopped_early`, `last_update_index`, `final_gap`
+
+## Distance Computation
+
+The main query path uses `_compute_distances_batch()` for speed:
+
+- Euclidean: vectorized squared distance then square root
+- Manhattan: vectorized absolute deviation
+- Cosine: dot product on pre‑normalized data (when enabled)
+
+`_compute_distance_fast()` remains as a single‑point helper (and is used by a legacy wrapper), but is not the hot path for `query()`.
+
+## Batch Queries: `query_batch()`
+
+`query_batch()` runs `query()` repeatedly:
+
+- `n_jobs=1`: simple Python loop
+- `n_jobs>1`: uses `joblib.Parallel` to parallelize across queries
+
+It returns:
+
+- `all_neighbors`: `(n_queries, k)`
+- `all_distances`: `(n_queries, k)`
+- `all_dist_counts`: `(n_queries,)`
+
+## Algorithm: Beta‑Geometric Gap Model (as implemented)
+
+The statistics module models “success” events via a simple Bayesian bound:
+
+- Let a success be “the next scanned point improves the current k‑NN threshold”.
+- After observing a gap of `G` consecutive failures, compute an upper bound `p_max` on the success probability at confidence `c`.
+- Estimate expected remaining successes as `remaining * p_max`.
+
+DES‑kNN stops when:
+
+```
+expected_misses < tolerance
+```
+
+Implementation details live in:
+- `src/statistics.py` (`estimate_future_matches`)
+
+Important note for interpretation:
+- The Beta‑Geometric story is most assumption‑aligned when the scan order is random (BaseSorter). With heuristic sorters (PCA/cluster), treat the bound as an empirically effective stopping heuristic unless you enforce guarantee-mode assumptions separately.
+
+## Pseudocode
+
+### DES‑kNN with PCA ordering (`des_knn_pca`, heuristic mode)
+
+```
+Inputs:
+  X (n×d), query q, k
+  tolerance τ, confidence c
+  min_samples m, block_size B
+
+Preprocess (once):
+  Fit PCA on X to obtain reduced vectors X_r
+
+Per-query:
+  q_r ← PCA.transform(q)
+  order ← argsort_i ||X_r[i] - q_r||^2            # heuristic scan order
+
+  heap ← empty max-heap of size ≤ k storing (-dist, idx)
+  d_k ← +∞
+  last_update ← 0
+  dist_count ← 0
+
+  for block_start in {0, B, 2B, ...}:
+    block ← order[block_start : min(block_start+B, n)]
+    D ← dist(q, X[block])                        # vectorized true distances
+    dist_count += |block|
+
+    for (j, (d, idx)) in enumerate(zip(D, block)):
+      pos ← block_start + j
+      if heap.size < k:
+        heap.push((-d, idx))
+        if heap.size == k:
+          d_k ← -heap.top().dist
+          last_update ← pos
+      else if d < d_k:
+        heap.replace_top((-d, idx))
+        d_k ← -heap.top().dist
+        last_update ← pos
+
+    pos_end ← min(block_start+B, n) - 1
+    if pos_end ≥ m:
+      gap ← pos_end - last_update
+      if gap > k:
+        remaining ← n - (pos_end + 1)
+        expected_misses ← estimate_future_matches(gap, remaining, c)
+        if expected_misses < τ and (optional CV-check passes):
+          break
+
+  return heap.sorted_by_distance(), dist_count, (optional stats)
+```
+
+### DES‑kNN Guarantee Variant (`des_knn_guarantee`, assumption‑aligned)
+
+This matches `src/des_knn_guarantee.py`. The key differences are:
+
+- The scan order is enforced to be random (`RandomOrderSorter`).
+- The stopping model uses a fixed `reference_distance` so the success event is stationary:
+  “success ⇔ dist(q, x) < reference_distance”.
+
+```
+Inputs:
+  X (n×d), query q, k
+  tolerance τ, confidence c
+  min_samples m, block_size B
+
+Per-query:
+  order ← RandomPermutation(0..n-1)
+  heap ← empty max-heap of size ≤ k
+  d_k ← +∞
+  dist_count ← 0
+
+  reference_distance ← None
+  reference_set_at ← None
+  last_success ← None
+
+  for block_start in {0, B, 2B, ...}:
+    block ← order[block_start : min(block_start+B, n)]
+    D ← dist(q, X[block])                        # vectorized true distances
+    dist_count += |block|
+
+    for (j, (d, idx)) in enumerate(zip(D, block)):
+      pos ← block_start + j
+      update heap / d_k using d                  # same as above
+      if reference_distance is not None and d < reference_distance:
+        last_success ← pos
+
+    pos_end ← min(block_start+B, n) - 1
+
+    if reference_distance is None and pos_end ≥ m and heap.size == k:
+      reference_distance ← d_k
+      reference_set_at ← pos_end
+      last_success ← pos_end                     # start counting the gap after reference is fixed
+    else if reference_distance is not None:
+      gap ← pos_end - last_success
+      if gap > k:
+        remaining ← n - (pos_end + 1)
+        expected_misses ← estimate_future_matches(gap, remaining, c)
+        if expected_misses < τ:
+          break
+
+  return heap.sorted_by_distance(), dist_count, stats where:
+    expected_misses is defined relative to reference_distance
+```
+
+## Guarantee Variant: `DESKNNSearcherGuarantee`
+
+This repo also includes a conservative, assumption-aligned variant in `src/des_knn_guarantee.py`:
+
+- Enforces **random scan order** (requires `RandomOrderSorter` from `src/sorting.py`).
+- Freezes a fixed `reference_distance` once `min_samples` is reached so the “success” event is stationary for the bound.
+
+In this guarantee variant, `expected_misses` is explicitly defined relative to `reference_distance` (see `expected_misses_definition` in the returned stats).
+
+Usage:
 
 ```python
-def _compute_distance_fast(
-    self,
-    q: np.ndarray,
-    idx: int,
-    q_normalized: Optional[np.ndarray] = None
-) -> float:
-    """
-    Optimized internal distance computation.
-    """
-    if self.distance_metric == 'euclidean':
-        x = self.X[idx]
-        d = q - x
-        return np.sqrt(d.dot(d))
+from src.des_knn_guarantee import DESKNNSearcherGuarantee
 
-    elif self.distance_metric == 'manhattan':
-        x = self.X[idx]
-        return np.sum(np.abs(q - x))
-
-    elif self.distance_metric == 'cosine':
-        if self.X_normalized is not None:
-            similarity = np.dot(q_normalized, self.X_normalized[idx])
-            return 1.0 - similarity
-        else:
-            x = self.X[idx]
-            return 1.0 - (np.dot(q, x) / (np.linalg.norm(q) * np.linalg.norm(x) + 1e-10))
-
-    return 0.0
+searcher = DESKNNSearcherGuarantee(X, tolerance=0.5, confidence=0.99, random_state=42)
+neighbors, distances, dist_count, stats = searcher.query(q, k=10, return_stats=True)
+print(stats["reference_distance"], stats["expected_misses"])
 ```
-
-### Batch Query Method
-
-```python
-def query_batch(
-    self,
-    queries: np.ndarray,
-    k: int,
-    n_jobs: int = 1
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Query multiple points in parallel.
-
-    Parameters
-    ----------
-    queries : np.ndarray of shape (n_queries, n_features)
-        Query points.
-    k : int
-        Number of neighbors.
-    n_jobs : int, default=1
-        Number of parallel jobs.
-
-    Returns
-    -------
-    all_neighbors : np.ndarray
-    all_distances : np.ndarray
-    all_dist_counts : np.ndarray
-    """
-    n_queries = len(queries)
-    all_neighbors = np.zeros((n_queries, k), dtype=np.int64)
-    all_distances = np.zeros((n_queries, k), dtype=np.float32)
-    all_dist_counts = np.zeros(n_queries, dtype=np.int64)
-
-    if n_jobs == 1:
-        for i, q in enumerate(queries):
-            n_idxs, dists, count = self.query(q, k, return_distances=True)
-            all_neighbors[i] = n_idxs
-            all_distances[i] = dists
-            all_dist_counts[i] = count
-    else:
-        def _job(i, q):
-            return i, self.query(q, k, return_distances=True)
-
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(_job)(i, q) for i, q in enumerate(queries)
-        )
-
-        for i, (n_idxs, dists, count) in results:
-            all_neighbors[i] = n_idxs
-            all_distances[i] = dists
-            all_dist_counts[i] = count
-
-    return all_neighbors, all_distances, all_dist_counts
-```
-
-## Algorithm: Beta-Geometric Gap Model
-
-### Theory
-
-Under random search order, the probability that a random unseen point x satisfies `dist(x,q) < d_k` is a fixed value `p`. The number of samples between updates follows a **Geometric distribution**.
-
-If we observe `G` consecutive samples without an update (a "gap"), we can use Bayesian inference to bound `p`:
-
-1. **Prior**: Beta(1, 1) = Uniform
-2. **Likelihood**: G consecutive failures
-3. **Posterior**: Beta(1, 1 + G)
-4. **Upper Bound**: `p_max = 1 - (1 - confidence)^(1/(G+1))`
-
-### Stopping Criterion
-
-Stop when `E[Missed] = remaining * p_max < tolerance`
-
-### Complexity
-
-- **Per-check cost**: O(1) - just 3 floating-point operations
-- **Total overhead**: Negligible compared to distance computations
 
 ## Usage Example
 
 ```python
 import numpy as np
+
 from src.des_knn import DESKNNSearcher
+from src.sorting import BaseSorter, PCASorter
 
-# Create sample data
 np.random.seed(42)
-X = np.random.randn(10000, 128).astype(np.float32)
+X = np.random.randn(10_000, 128).astype(np.float32)
 q = np.random.randn(128).astype(np.float32)
-
-# Initialize searcher with Beta-Geometric Gap model
-searcher = DESKNNSearcher(
-    X,
-    tolerance=0.5,        # Expected missed neighbors threshold
-    confidence=0.99,      # Confidence level for statistical bound
-    max_cv=0.3,           # Optional: max coefficient of variation
-    distance_metric='euclidean',
-    random_state=42
-)
-
-# Query
 k = 10
-neighbors, distances, dist_count = searcher.query(q, k)
 
-print(f"Found {k} neighbors")
-print(f"Distance computations: {dist_count} / {len(X)} ({100*dist_count/len(X):.1f}%)")
-print(f"Speedup: {len(X) / dist_count:.2f}x")
-
-# Query with statistics
+# Assumption-aligned (random order)
+searcher = DESKNNSearcher(X, tolerance=0.5, confidence=0.99, sorter=BaseSorter(), block_size=256, random_state=42)
 neighbors, distances, dist_count, stats = searcher.query(q, k, return_stats=True)
-print(f"Stopped early: {stats['stopped_early']}")
-print(f"Scan ratio: {stats['scan_ratio']*100:.1f}%")
-print(f"Expected misses: {stats['expected_misses']:.4f}")
+
+# Heuristic mode (often faster; no strict random-order assumption)
+searcher_pca = DESKNNSearcher(X, tolerance=1.0, confidence=0.99, sorter=PCASorter(n_components=32), block_size=256, random_state=42)
+neighbors, distances, dist_count = searcher_pca.query(q, k)
 ```
 
-## Parameter Tuning
+## Parameter Tuning (practical guidance)
 
-| Parameter | Effect | Recommended Range |
-|-----------|--------|-------------------|
-| `tolerance` | Higher = faster, lower recall | 0.1 (strict) to 2.0 (loose) |
-| `confidence` | Higher = more conservative | 0.95 to 0.999 |
-| `max_cv` | Prevents early stop on dispersed neighbors | 0.2 to 0.5 or None |
-| `min_samples` | Ensures enough samples before stopping | k+50 to 5% of n |
+| Parameter | Effect | Notes |
+|---|---|---|
+| `tolerance` | Higher = earlier stop | Can be dataset-dependent; values can be much larger than 1.0 in practice. |
+| `confidence` | Higher = more conservative | Typical: 0.95–0.999. |
+| `min_samples` | Minimum scan before stopping | Default is `max(k+50, 1% of n)`. |
+| `max_cv` | Safety against dispersed k-NN set | Smaller = more conservative; set `None` to disable. |
+| `block_size` | Vectorization granularity | 64–1024; larger reduces Python overhead but checks stopping less frequently. |
+| `sorter` | Scan ordering | `BaseSorter` (random), `PCASorter`, `ClusterSorter`. |
 
-## Unit Tests
+## Tests
 
-```python
-# tests/test_des_knn.py
-
-def test_des_knn_basic():
-    """Test basic functionality returns correct number of neighbors."""
-    pass
-
-def test_des_knn_exact_small_dataset():
-    """On tiny dataset, should return exact k-NN."""
-    pass
-
-def test_des_knn_high_recall():
-    """Test recall meets threshold on synthetic data."""
-    pass
-
-def test_des_knn_speedup():
-    """Test that early stopping provides speedup on clustered data."""
-    pass
-
-def test_des_knn_cv_check():
-    """Test that max_cv prevents early stopping on dispersed neighbors."""
-    pass
-
-def test_des_knn_return_stats():
-    """Test return_stats option."""
-    pass
-```
+Implemented tests live in:
+- `tests/test_des_knn.py`
+- `tests/test_des_knn_correctness.py`
+- `tests/test_statistics.py`

@@ -22,6 +22,15 @@ class BaseSorter:
         n = X.shape[0]
         return self.rng.permutation(n)
 
+
+class RandomOrderSorter(BaseSorter):
+    """Random permutation sorter to satisfy Beta-Geometric assumptions."""
+
+    def get_sorted_indices(self, q, X):
+        n = X.shape[0]
+        return self.rng.permutation(n)
+
+
 class PCASorter(BaseSorter):
     def __init__(self, n_components=16):
         """
