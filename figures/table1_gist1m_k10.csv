@@ -1,0 +1,11 @@
+Dataset,TargetRecall,Method,Mode,Recall@10,Time(ms),ScanRatio(%),ExpectedMisses,BuildTime(s)
+gist1m,0.95,exact,-,1.0000±0.0000,15.20±0.00,-,-,-
+gist1m,0.95,DES-kNN (Heuristic),heuristic,1.0000±0.0000,4.71±0.00,1.2,696.11,-
+gist1m,0.95,DES-kNN (Guarantee),guarantee,1.0000±0.0000,19.62±0.00,100.0,0.01,-
+gist1m,0.95,HNSW,-,1.0000±0.0000,0.48±0.00,-,-,0.50
+gist1m,0.95,Annoy,-,1.0000±0.0000,15.76±0.00,-,-,0.64
+gist1m,0.99,exact,-,1.0000±0.0000,15.20±0.00,-,-,-
+gist1m,0.99,DES-kNN (Heuristic),heuristic,1.0000±0.0000,4.71±0.00,1.2,696.11,-
+gist1m,0.99,DES-kNN (Guarantee),guarantee,1.0000±0.0000,19.62±0.00,100.0,0.01,-
+gist1m,0.99,HNSW,-,1.0000±0.0000,0.48±0.00,-,-,0.50
+gist1m,0.99,Annoy,-,1.0000±0.0000,15.76±0.00,-,-,0.64
