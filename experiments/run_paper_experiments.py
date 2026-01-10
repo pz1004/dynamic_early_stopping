@@ -19,44 +19,73 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from experiments.run_experiments import run_experiment
 
 # Configuration for the Paper
-# Include clustered/uniform for transparency plots, and SIFT/GIST for scale.
+# Include synthetic datasets for transparency plots, and SIFT/GloVe for scale.
 DATASETS = [
     'mnist',
     'fashion_mnist',
+    'synthetic_clustered',
+    'synthetic_uniform',
     'sift1m',
-    'gist1m'
+    'glove'
 ]
 METHODS = ['exact', 'des_knn_pca', 'des_knn_guarantee', 'hnsw', 'annoy']
 K_VALUES = [10]
 SEEDS = [0, 1, 2]  # 3 seeds for error bars
 
+# Dataset-specific loader parameters
+DATASET_PARAMS = {
+    'synthetic_clustered': {
+        'n': 100000,
+        'd': 128,
+        'n_clusters': 50,
+        'cluster_std': 1.0,
+    },
+    'synthetic_uniform': {
+        'n': 100000,
+        'd': 128,
+    },
+    'glove': {
+        'dim': 300,
+        'max_words': 400000,
+        'allow_synthetic': False,
+    },
+}
+
 # Dense sweeps for Pareto curves (dataset-specific where needed)
 DES_KNN_PCA_TAUS = {
-    'mnist': [800, 900, 1000, 1100, 1200],
-    'fashion_mnist': [800, 900, 1000, 1100, 1200],
-    'sift1m': [800, 900, 1000, 1100, 1200],
-    'gist1m': [800, 900, 1000, 1100, 1200],
+    'mnist': [200, 400, 800, 1600, 3200, 6400, 10000],
+    'fashion_mnist': [200, 400, 800, 1600, 3200, 6400, 10000],
+    'synthetic_clustered': [10, 20, 50, 100, 200, 500, 1000, 2000],
+    'synthetic_uniform': [10, 20, 50, 100, 200, 500, 1000, 2000],
+    'sift1m': [200, 400, 800, 1600, 3200, 6400, 12800],
+    'glove': [200, 400, 800, 1600, 3200, 6400, 12800],
 }
 
 DES_KNN_GUARANTEE_TAUS = {
-    'mnist': [1, 2, 3, 4, 5],
-    'fashion_mnist': [1, 2, 3, 4, 5],
-    'sift1m': [1, 2, 3, 4, 5],
-    'gist1m': [1, 2, 3, 4, 5],
+    'mnist': [1, 2, 5, 10, 20, 50, 100, 200],
+    'fashion_mnist': [1, 2, 5, 10, 20, 50, 100, 200],
+    'synthetic_clustered': [5, 10, 20, 50, 100, 200, 500, 1000],
+    'synthetic_uniform': [5, 10, 20, 50, 100, 200, 500, 1000],
+    'sift1m': [500, 1000, 2000, 5000, 10000, 20000, 50000],
+    'glove': [500, 1000, 2000, 5000, 10000, 20000, 50000],
 }
 
 HNSW_EF_SWEEPS = {
-    'mnist': [16, 32, 48, 64, 80],
-    'fashion_mnist': [16, 32, 48, 64, 80],
-    'sift1m': [200, 250, 300, 350, 400],
-    'gist1m': [1500, 2000, 2500, 3000, 3500],
+    'mnist': [4, 8, 16, 32, 64, 128],
+    'fashion_mnist': [4, 8, 16, 32, 64, 128],
+    'synthetic_clustered': [20, 50, 100, 200, 400, 800],
+    'synthetic_uniform': [20, 50, 100, 200, 400, 800],
+    'sift1m': [50, 100, 200, 300, 400, 600, 800, 1200],
+    'glove': [50, 100, 200, 400, 600, 800, 1200],
 }
 
 ANNOY_SEARCHK_SWEEPS = {
-    'mnist': [13000, 13500, 14000, 14500, 15000],
-    'fashion_mnist': [19000, 19500, 20000, 20500, 21000],
-    'sift1m': [70000, 75000, 80000, 85000, 90000],
-    'gist1m': [300000, 350000, 400000, 450000, 500000],
+    'mnist': [500, 1000, 2000, 5000, 10000, 20000],
+    'fashion_mnist': [500, 1000, 2000, 5000, 10000, 20000],
+    'synthetic_clustered': [1000, 2000, 5000, 10000, 20000, 40000, 80000],
+    'synthetic_uniform': [1000, 2000, 5000, 10000, 20000, 40000, 80000],
+    'sift1m': [5000, 10000, 20000, 40000, 80000, 120000, 200000],
+    'glove': [5000, 10000, 20000, 40000, 80000, 120000, 200000],
 }
 
 
@@ -191,10 +220,11 @@ def run_paper_suite(
     }
     
     for dataset in DATASETS:
+        dataset_params = DATASET_PARAMS.get(dataset, {})
         # Skip if dataset not found (simple check)
         try:
             from src.utils.data_loader import DataLoader
-            DataLoader().load(dataset)
+            DataLoader().load(dataset, **dataset_params)
         except Exception:
             print(f"Skipping {dataset} (not found)")
             continue
@@ -221,6 +251,7 @@ def run_paper_suite(
                                 k=k,
                                 n_queries=n_queries,
                                 method_params=config,
+                                dataset_params=dataset_params,
                                 random_seed=seed,
                                 verbose=False
                             )

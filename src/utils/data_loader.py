@@ -443,8 +443,9 @@ class DataLoader:
 
     def _load_glove(
         self,
-        dim: int = 50,
-        max_words: int = 400000
+        dim: int = 300,
+        max_words: int = 400000,
+        allow_synthetic: bool = True
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Load GloVe word vectors.
@@ -455,10 +456,14 @@ class DataLoader:
             Embedding dimension (50, 100, 200, or 300).
         max_words : int
             Maximum number of words to load.
+        allow_synthetic : bool
+            Whether to fall back to synthetic data if the file is missing.
         """
         glove_path = self.data_dir / f'glove.6B.{dim}d.txt'
 
         if not glove_path.exists():
+            if not allow_synthetic:
+                raise FileNotFoundError(f"GloVe file not found at {glove_path}")
             print(f"Warning: GloVe file not found at {glove_path}")
             print("Using synthetic data.")
             return self._load_synthetic_uniform(n=max_words, d=dim)

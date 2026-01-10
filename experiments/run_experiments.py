@@ -52,7 +52,8 @@ DATASETS = [
     'synthetic_clustered',
     'synthetic_uniform',
     'sift1m',
-    'gist1m'
+    'gist1m',
+    'glove'
 ]
 
 METHODS = [
@@ -189,6 +190,7 @@ def run_experiment(
     k: int,
     n_queries: int = 1000,
     method_params: Dict[str, Any] = None,
+    dataset_params: Dict[str, Any] = None,
     random_seed: int = 42,
     verbose: bool = True,
     n_jobs: int = 1
@@ -208,6 +210,8 @@ def run_experiment(
         Number of query points.
     method_params : Dict[str, Any]
         Method-specific parameters.
+    dataset_params : Dict[str, Any]
+        Dataset-specific parameters.
     random_seed : int
         Random seed for reproducibility.
     verbose : bool
@@ -228,7 +232,8 @@ def run_experiment(
         print(f"Loading dataset: {dataset_name}")
 
     data_loader = DataLoader(random_state=random_seed)
-    X_train, X_test, y_train, y_test = data_loader.load(dataset_name)
+    dataset_params = dataset_params or {}
+    X_train, X_test, y_train, y_test = data_loader.load(dataset_name, **dataset_params)
 
     if verbose:
         print(f"  Training set: {X_train.shape}")
