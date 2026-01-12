@@ -8,14 +8,25 @@ Usage:
 
 import argparse
 import json
-import numpy as np
-import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import sys
-import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+DATASET_ORDER = [
+    'synthetic_uniform',
+    'synthetic_clustered',
+    'mnist',
+    'fashion_mnist',
+    'sift1m',
+]
+
+
+def order_datasets(datasets: List[str]) -> List[str]:
+    ordered = [d for d in DATASET_ORDER if d in datasets]
+    remainder = [d for d in datasets if d not in DATASET_ORDER]
+    return ordered + remainder
 
 
 def select_results_file(results_dir: str) -> Path:
@@ -44,63 +55,13 @@ def get_entries(results: Dict[str, Any], dataset: str, method: str, k: int) -> L
 
 def method_label(method: str) -> str:
     labels = {
-        'des_knn_pca': 'DES-kNN (Heuristic)',
-        'des_knn_guarantee': 'DES-kNN (Guarantee)',
+        'exact': 'Brute-force',
+        'des_knn_pca': 'DES-kNN (heuristic)',
+        'des_knn_guarantee': 'DES-kNN (guarantee)',
         'hnsw': 'HNSW',
         'annoy': 'Annoy',
     }
     return labels.get(method, method)
-
-
-def build_frontier_df(results: Dict[str, Any], dataset: str, k: int) -> pd.DataFrame:
-    rows = []
-    for method in results.get(dataset, {}):
-        for entry in get_entries(results, dataset, method, k):
-            agg = entry.get('aggregate', {})
-            rows.append({
-                'dataset': dataset,
-                'method': method,
-                'label': method_label(method),
-                'recall_mean': agg.get('recall_mean'),
-                'recall_std': agg.get('recall_std'),
-                'query_time_ms_mean': agg.get('query_time_ms_mean'),
-                'query_time_ms_std': agg.get('query_time_ms_std'),
-                'speedup_mean': agg.get('speedup_mean'),
-                'speedup_std': agg.get('speedup_std'),
-                'params': json.dumps(entry.get('params', {}), sort_keys=True),
-            })
-    df = pd.DataFrame(rows)
-    return df.dropna(subset=['recall_mean', 'query_time_ms_mean'])
-
-
-def plot_frontier(df: pd.DataFrame, output_path: Path, title: str):
-    fig, ax = plt.subplots(figsize=(7, 5))
-    styles = {
-        'des_knn_pca': {'linestyle': '-', 'marker': 'o'},
-        'des_knn_guarantee': {'linestyle': '--', 'marker': 'o'},
-        'hnsw': {'linestyle': '-', 'marker': 's'},
-        'annoy': {'linestyle': '-', 'marker': '^'},
-    }
-
-    for method in df['method'].unique():
-        sub = df[df['method'] == method].sort_values('recall_mean')
-        style = styles.get(method, {})
-        ax.plot(
-            sub['recall_mean'],
-            sub['query_time_ms_mean'],
-            label=method_label(method),
-            **style
-        )
-
-    ax.set_xlabel('Recall@10')
-    ax.set_ylabel('Query Time (ms)')
-    ax.set_title(title)
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close(fig)
-
 
 def select_operating_point(entries: List[Dict[str, Any]], recall_target: float) -> Dict[str, Any]:
     valid = []
@@ -119,93 +80,292 @@ def select_operating_point(entries: List[Dict[str, Any]], recall_target: float) 
     return max(valid, key=lambda v: v[1])[0]
 
 
-def build_table(results: Dict[str, Any], dataset: str, k: int, recall_targets: List[float]) -> pd.DataFrame:
-    rows = []
-    for recall_target in recall_targets:
-        for method in results.get(dataset, {}):
-            entries = get_entries(results, dataset, method, k)
-            selected = select_operating_point(entries, recall_target)
-            if not selected:
-                continue
-            agg = selected.get('aggregate', {})
-            mode = '-' if not method.startswith('des_knn') else (
-                'guarantee' if 'guarantee' in method else 'heuristic'
-            )
-            row = {
-                'Dataset': dataset,
-                'TargetRecall': recall_target,
-                'Method': method_label(method),
-                'Mode': mode,
-                'Recall@10': f"{agg.get('recall_mean', 0):.4f}±{agg.get('recall_std', 0):.4f}",
-                'Time(ms)': f"{agg.get('query_time_ms_mean', 0):.2f}±{agg.get('query_time_ms_std', 0):.2f}",
-            }
-            if method.startswith('des_knn'):
-                row['ScanRatio(%)'] = f"{(agg.get('scan_ratio_mean', 0) * 100):.1f}"
-                exp_misses = agg.get('expected_misses_median')
-                row['ExpectedMisses'] = f"{exp_misses:.2f}" if exp_misses is not None else '-'
-            else:
-                row['ScanRatio(%)'] = '-'
-                row['ExpectedMisses'] = '-'
-            if method in ['hnsw', 'annoy']:
-                row['BuildTime(s)'] = f"{agg.get('build_time_mean', 0):.2f}"
-            else:
-                row['BuildTime(s)'] = '-'
-            rows.append(row)
-    return pd.DataFrame(rows)
+def select_best_speedup(
+    entries: List[Dict[str, Any]],
+    exact_time: Optional[float],
+    min_recall: float
+) -> Optional[Dict[str, Any]]:
+    if exact_time is None:
+        return None
+    candidates = []
+    for entry in entries:
+        agg = entry.get('aggregate', {})
+        recall = agg.get('recall_mean')
+        time_ms = agg.get('query_time_ms_mean')
+        if recall is None or time_ms is None:
+            continue
+        if recall <= min_recall:
+            continue
+        speedup = exact_time / time_ms if time_ms else None
+        if speedup is None:
+            continue
+        candidates.append((speedup, recall, entry))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda v: (v[0], v[1]))[2]
 
 
-def collect_per_query(entry: Dict[str, Any], key: str) -> np.ndarray:
-    values = []
-    for seed in entry.get('seeds', []):
-        per_query = seed.get('per_query', {})
-        chunk = per_query.get(key, [])
-        values.extend(chunk)
-    return np.array(values, dtype=np.float32)
+def get_exact_time(results: Dict[str, Any], dataset: str, k: int) -> Optional[float]:
+    entries = get_entries(results, dataset, 'exact', k)
+    if not entries:
+        return None
+    best = max(entries, key=lambda e: e.get('aggregate', {}).get('recall_mean') or -1)
+    return best.get('aggregate', {}).get('query_time_ms_mean')
 
 
-def plot_transparency(
+def build_table_rows(
     results: Dict[str, Any],
     datasets: List[str],
-    methods: List[str],
     k: int,
-    recall_target: float,
-    output_path: Path
-):
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    ax_cdf, ax_hist = axes
-
+    recall_targets: List[float]
+) -> List[Dict[str, Any]]:
+    methods_order = ['exact', 'hnsw', 'annoy', 'des_knn_guarantee', 'des_knn_pca']
+    rows = []
     for dataset in datasets:
-        for method in methods:
-            entries = get_entries(results, dataset, method, k)
-            selected = select_operating_point(entries, recall_target)
-            if not selected:
+        exact_time = get_exact_time(results, dataset, k)
+        if exact_time is None:
+            continue
+        for recall_target in recall_targets:
+            for method in methods_order:
+                entries = get_entries(results, dataset, method, k)
+                if method in ['hnsw', 'annoy']:
+                    selected = select_best_speedup(entries, exact_time, min_recall=0.99)
+                    if selected is None:
+                        selected = select_operating_point(entries, recall_target)
+                else:
+                    selected = select_operating_point(entries, recall_target)
+                if not selected:
+                    continue
+                agg = selected.get('aggregate', {})
+                time_ms = agg.get('query_time_ms_mean')
+                time_ms_std = agg.get('query_time_ms_std')
+                recall_mean = agg.get('recall_mean')
+                recall_std = agg.get('recall_std')
+                scan_ratio = agg.get('scan_ratio_mean')
+                scan_ratio_std = agg.get('scan_ratio_std')
+                speedup = (exact_time / time_ms) if time_ms else None
+                speedup_std = agg.get('speedup_std')
+                row_target = recall_target
+                if method in ['hnsw', 'annoy'] and row_target < 0.99:
+                    row_target = 0.99
+                rows.append({
+                    'dataset': dataset,
+                    'method': method_label(method),
+                    'target_recall': row_target,
+                    'time_ms': time_ms,
+                    'time_ms_std': time_ms_std,
+                    'speedup': speedup,
+                    'speedup_std': speedup_std,
+                    'scan_ratio': scan_ratio,
+                    'scan_ratio_std': scan_ratio_std,
+                    'recall_mean': recall_mean,
+                    'recall_std': recall_std,
+                    'is_des': method.startswith('des_knn'),
+                    'is_exact': method == 'exact',
+                })
+    return rows
+
+
+def format_decimal(value: Optional[float], std: Optional[float] = None) -> str:
+    if value is None:
+        return '-'
+    if std is not None:
+        return f"{value:.4f} $\\pm$ {std:.4f}"
+    return f"{value:.4f}"
+
+
+def format_speedup(speedup: Optional[float], std: Optional[float] = None) -> str:
+    if speedup is None:
+        return '-'
+    if std is not None:
+        return f"{speedup:.4f} $\\pm$ {std:.4f}$\\times$"
+    return f"{speedup:.4f}$\\times$"
+
+
+def format_scan_ratio(scan_ratio: Optional[float], std: Optional[float], is_des: bool, is_exact: bool) -> str:
+    if is_exact:
+        return "1.0000"
+    if not is_des or scan_ratio is None:
+        return "--"
+    if std is not None:
+        return f"{scan_ratio:.4f} $\\pm$ {std:.4f}"
+    return f"{scan_ratio:.4f}"
+
+
+def write_table_latex(
+    output_path: Path,
+    caption: str,
+    rows: List[Dict[str, Any]]
+) -> None:
+    lines = [
+        "\\begin{table*}[tb]\\centering",
+        f"\\caption{{{caption}}}",
+        "\\label{tab:results}",
+        "\\begin{tabular}{lccccc}",
+        "\\hline",
+        "Dataset & Method & Recall@10 & Time (ms) & Speedup & Scan Ratio \\\\",
+        "\\hline",
+    ]
+
+    grouped = {}
+    for row in rows:
+        grouped.setdefault(row['dataset'], []).append(row)
+
+    for dataset, dataset_rows in grouped.items():
+        for i, row in enumerate(dataset_rows):
+            dataset_cell = f"\\multirow{{{len(dataset_rows)}}}{{*}}{{{dataset}}}" if i == 0 else ""
+            recall_mean = format_decimal(row['recall_mean'], row.get('recall_std'))
+            time_ms = format_decimal(row['time_ms'], row.get('time_ms_std'))
+            speedup = format_speedup(1.0 if row['is_exact'] else row['speedup'],
+                                     None if row['is_exact'] else row.get('speedup_std'))
+            scan_ratio = format_scan_ratio(row['scan_ratio'], row.get('scan_ratio_std'),
+                                           row['is_des'], row['is_exact'])
+            prefix = f"{dataset_cell} &" if dataset_cell else " &"
+            lines.append(
+                f"{prefix} {row['method']} & {recall_mean} & {time_ms} & "
+                f"{speedup} & {scan_ratio} \\\\"
+            )
+        lines.append("\\hline")
+
+    lines.append("\\end{tabular}")
+    lines.append("\\end{table*}")
+    output_path.write_text("\n".join(lines))
+
+
+def build_table2_rows(
+    results: Dict[str, Any],
+    datasets: List[str],
+    k: int
+) -> List[Dict[str, Any]]:
+    rows = []
+    for dataset in datasets:
+        exact_time = get_exact_time(results, dataset, k)
+        if exact_time is None:
+            continue
+        entries = get_entries(results, dataset, 'des_knn_guarantee', k)
+        for entry in entries:
+            agg = entry.get('aggregate', {})
+            params = entry.get('params', {})
+            tolerance = params.get('tolerance')
+            time_ms = agg.get('query_time_ms_mean')
+            recall_mean = agg.get('recall_mean')
+            recall_std = agg.get('recall_std')
+            speedup_std = agg.get('speedup_std')
+            if tolerance is None or time_ms is None or recall_mean is None:
                 continue
-            label = f"{dataset}-{method_label(method)}"
-            scan_ratios = collect_per_query(selected, 'scan_ratios')
-            expected_misses = collect_per_query(selected, 'expected_misses')
+            speedup = exact_time / time_ms if time_ms else None
+            rows.append({
+                'dataset': dataset,
+                'tolerance': tolerance,
+                'recall_mean': recall_mean,
+                'recall_std': recall_std,
+                'speedup': speedup,
+                'speedup_std': speedup_std,
+            })
+    rows.sort(key=lambda r: (r['dataset'], r['tolerance']))
+    return rows
 
-            if scan_ratios.size > 0:
-                xs = np.sort(scan_ratios)
-                ys = np.arange(1, len(xs) + 1) / len(xs)
-                ax_cdf.plot(xs, ys, label=label)
 
-            if expected_misses.size > 0:
-                ax_hist.hist(expected_misses, bins=30, density=True, alpha=0.4, label=label)
+def write_table2_latex(
+    output_path: Path,
+    caption: str,
+    rows: List[Dict[str, Any]]
+) -> None:
+    lines = [
+        "\\begin{table*}[tb]\\centering",
+        f"\\caption{{{caption}}}",
+        "\\label{tab:results_tolerance}",
+        "\\begin{tabular}{lccc}",
+        "\\hline",
+        "Dataset & Tolerance ($\\tau$) & Recall@10 & Speedup \\\\",
+        "\\hline",
+    ]
 
-    ax_cdf.set_title('CDF of Scan Ratio per Query')
-    ax_cdf.set_xlabel('Scan Ratio')
-    ax_cdf.set_ylabel('CDF')
-    ax_cdf.grid(True, alpha=0.3)
-    ax_cdf.legend(fontsize=8)
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(row['dataset'], []).append(row)
 
-    ax_hist.set_title('Expected Misses at Stop')
-    ax_hist.set_xlabel('Expected Misses')
-    ax_hist.set_ylabel('Density')
-    ax_hist.grid(True, alpha=0.3)
+    for dataset, dataset_rows in grouped.items():
+        for i, row in enumerate(dataset_rows):
+            dataset_cell = f"\\multirow{{{len(dataset_rows)}}}{{*}}{{{dataset}}}" if i == 0 else ""
+            tol = format_decimal(float(row['tolerance']))
+            recall = format_decimal(row['recall_mean'], row.get('recall_std'))
+            speedup = format_speedup(row['speedup'], row.get('speedup_std'))
+            prefix = f"{dataset_cell} &" if dataset_cell else " &"
+            lines.append(f"{prefix} {tol} & {recall} & {speedup} \\\\")
+        lines.append("\\hline")
 
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close(fig)
+    lines.append("\\end{tabular}")
+    lines.append("\\end{table*}")
+    output_path.write_text("\n".join(lines))
+
+
+def build_table3_rows(
+    results: Dict[str, Any],
+    datasets: List[str],
+    k: int
+) -> List[Dict[str, Any]]:
+    rows = []
+    for dataset in datasets:
+        exact_time = get_exact_time(results, dataset, k)
+        if exact_time is None:
+            continue
+        entries = get_entries(results, dataset, 'des_knn_pca', k)
+        for entry in entries:
+            agg = entry.get('aggregate', {})
+            params = entry.get('params', {})
+            tolerance = params.get('tolerance')
+            time_ms = agg.get('query_time_ms_mean')
+            recall_mean = agg.get('recall_mean')
+            recall_std = agg.get('recall_std')
+            speedup_std = agg.get('speedup_std')
+            if tolerance is None or time_ms is None or recall_mean is None:
+                continue
+            speedup = exact_time / time_ms if time_ms else None
+            rows.append({
+                'dataset': dataset,
+                'tolerance': tolerance,
+                'recall_mean': recall_mean,
+                'recall_std': recall_std,
+                'speedup': speedup,
+                'speedup_std': speedup_std,
+            })
+    rows.sort(key=lambda r: (r['dataset'], r['tolerance']))
+    return rows
+
+
+def write_table3_latex(
+    output_path: Path,
+    caption: str,
+    rows: List[Dict[str, Any]]
+) -> None:
+    lines = [
+        "\\begin{table*}[tb]\\centering",
+        f"\\caption{{{caption}}}",
+        "\\label{tab:results_tolerance_pca}",
+        "\\begin{tabular}{lccc}",
+        "\\hline",
+        "Dataset & Tolerance ($\\tau$) & Recall@10 & Speedup \\\\",
+        "\\hline",
+    ]
+
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(row['dataset'], []).append(row)
+
+    for dataset, dataset_rows in grouped.items():
+        for i, row in enumerate(dataset_rows):
+            dataset_cell = f"\\multirow{{{len(dataset_rows)}}}{{*}}{{{dataset}}}" if i == 0 else ""
+            tol = format_decimal(float(row['tolerance']))
+            recall = format_decimal(row['recall_mean'], row.get('recall_std'))
+            speedup = format_speedup(row['speedup'], row.get('speedup_std'))
+            prefix = f"{dataset_cell} &" if dataset_cell else " &"
+            lines.append(f"{prefix} {tol} & {recall} & {speedup} \\\\")
+        lines.append("\\hline")
+
+    lines.append("\\end{tabular}")
+    lines.append("\\end{table*}")
+    output_path.write_text("\n".join(lines))
 
 
 def main():
@@ -218,10 +378,8 @@ def main():
                         help='Directory for output figures/tables')
     parser.add_argument('--k', type=int, default=10,
                         help='Value of k for analysis')
-    parser.add_argument('--recall_targets', type=str, default='0.95,0.99',
+    parser.add_argument('--recall_targets', type=str, default='0.99',
                         help='Comma-separated recall targets for Table 1')
-    parser.add_argument('--transparency_recall', type=float, default=0.99,
-                        help='Recall target for transparency plots')
 
     args = parser.parse_args()
 
@@ -233,33 +391,33 @@ def main():
 
     recall_targets = [float(x) for x in args.recall_targets.split(',')]
 
-    # Figure 1: matched-recall frontier per dataset
-    for dataset in results:
-        frontier_df = build_frontier_df(results, dataset, args.k)
-        if frontier_df.empty:
-            continue
-        frontier_csv = output_dir / f'frontier_{dataset}_k{args.k}.csv'
-        frontier_df.to_csv(frontier_csv, index=False)
-        plot_frontier(
-            frontier_df,
-            output_dir / f'fig1_frontier_{dataset}_k{args.k}.png',
-            title=f"{dataset} (k={args.k})"
+    datasets = meta.get('datasets') or list(results.keys())
+    datasets = order_datasets(datasets)
+
+    table_rows = build_table_rows(results, datasets, args.k, recall_targets)
+    if table_rows:
+        table_caption = (
+            "Performance of DES-kNN and baselines at fixed recall targets. "
+            "Speedup is relative to brute-force time. "
+            "Scan ratio is the fraction of points scanned (DES-kNN only)."
         )
+        write_table_latex(output_dir / f'table1_k{args.k}.tex', caption=table_caption, rows=table_rows)
 
-        table_df = build_table(results, dataset, args.k, recall_targets)
-        if not table_df.empty:
-            table_df.to_csv(output_dir / f'table1_{dataset}_k{args.k}.csv', index=False)
-            table_df.to_latex(output_dir / f'table1_{dataset}_k{args.k}.tex', index=False, escape=False)
+    table2_rows = build_table2_rows(results, datasets, args.k)
+    if table2_rows:
+        table2_caption = (
+            "DES-kNN (guarantee) sensitivity to tolerance $\\tau$ across datasets. "
+            "Speedup is relative to brute-force time."
+        )
+        write_table2_latex(output_dir / f'table2_k{args.k}.tex', caption=table2_caption, rows=table2_rows)
 
-    # Figure 2: transparency (clustered vs uniform)
-    plot_transparency(
-        results,
-        datasets=['synthetic_clustered', 'synthetic_uniform'],
-        methods=['des_knn_guarantee', 'des_knn_pca'],
-        k=args.k,
-        recall_target=args.transparency_recall,
-        output_path=output_dir / f'fig2_transparency_k{args.k}.png'
-    )
+    table3_rows = build_table3_rows(results, datasets, args.k)
+    if table3_rows:
+        table3_caption = (
+            "DES-kNN (heuristic) sensitivity to tolerance $\\tau$ across datasets. "
+            "Speedup is relative to brute-force time."
+        )
+        write_table3_latex(output_dir / f'table3_k{args.k}.tex', caption=table3_caption, rows=table3_rows)
 
     print(f"Analysis complete. Outputs saved to {output_dir}")
 

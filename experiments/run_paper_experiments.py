@@ -52,40 +52,56 @@ DATASET_PARAMS = {
 }
 
 # Dense sweeps for Pareto curves (dataset-specific where needed)
+# Middle value targets ~0.99 recall based on empirical analysis
 DES_KNN_PCA_TAUS = {
-    'mnist': [200, 400, 800, 1600, 3200, 6400, 10000],
-    'fashion_mnist': [200, 400, 800, 1600, 3200, 6400, 10000],
-    'synthetic_clustered': [10, 20, 50, 100, 200, 500, 1000, 2000],
-    'synthetic_uniform': [10, 20, 50, 100, 200, 500, 1000, 2000],
-    'sift1m': [200, 400, 800, 1600, 3200, 6400, 12800],
-    'glove': [200, 400, 800, 1600, 3200, 6400, 12800],
+    # mnist/fashion_mnist: All taus achieve ~1.0 recall (easy dataset)
+    'mnist': [100, 200, 400, 800, 1600, 3200, 6400],
+    'fashion_mnist': [100, 200, 400, 800, 1600, 3200, 6400],
+    # synthetic_clustered: 0.99 at tau~500
+    'synthetic_clustered': [50, 100, 200, 500, 1000, 2000, 4000],
+    # synthetic_uniform: 0.99 at tau~10 (hardest for PCA sorter)
+    'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
+    # sift1m: All taus achieve 0.9994 recall
+    'sift1m': [100, 200, 400, 800, 1600, 3200, 6400],
+    'glove': [100, 200, 400, 800, 1600, 3200, 6400],
 }
 
 DES_KNN_GUARANTEE_TAUS = {
-    'mnist': [1, 2, 5, 10, 20, 50, 100, 200],
-    'fashion_mnist': [1, 2, 5, 10, 20, 50, 100, 200],
-    'synthetic_clustered': [5, 10, 20, 50, 100, 200, 500, 1000],
-    'synthetic_uniform': [5, 10, 20, 50, 100, 200, 500, 1000],
-    'sift1m': [500, 1000, 2000, 5000, 10000, 20000, 50000],
-    'glove': [500, 1000, 2000, 5000, 10000, 20000, 50000],
+    # mnist/fashion_mnist: 0.99 at tau~20
+    'mnist': [1, 5, 10, 20, 50, 100, 200],
+    'fashion_mnist': [1, 5, 10, 20, 50, 100, 200],
+    # synthetic_clustered/uniform: 0.99 at tau~20
+    'synthetic_clustered': [2, 5, 10, 20, 50, 100, 200],
+    'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
+    # sift1m: Does NOT achieve 0.99 (max ~0.4), include for completeness
+    'sift1m': [1, 5, 10, 50, 100, 500, 1000],
+    'glove': [1, 5, 10, 50, 100, 500, 1000],
 }
 
 HNSW_EF_SWEEPS = {
-    'mnist': [4, 8, 16, 32, 64, 128],
-    'fashion_mnist': [4, 8, 16, 32, 64, 128],
+    # mnist/fashion_mnist: 0.99 at ef~32
+    'mnist': [8, 16, 32, 64, 128, 256],
+    'fashion_mnist': [8, 16, 32, 64, 128, 256],
+    # synthetic_clustered: 0.99 at ef~100
     'synthetic_clustered': [20, 50, 100, 200, 400, 800],
-    'synthetic_uniform': [20, 50, 100, 200, 400, 800],
-    'sift1m': [50, 100, 200, 300, 400, 600, 800, 1200],
+    # synthetic_uniform: Never reaches 0.99 (max 0.93 at ef=800)
+    'synthetic_uniform': [100, 200, 400, 800, 1600, 3200],
+    # sift1m: 0.99 at ef~200
+    'sift1m': [50, 100, 200, 400, 600, 800, 1200],
     'glove': [50, 100, 200, 400, 600, 800, 1200],
 }
 
 ANNOY_SEARCHK_SWEEPS = {
-    'mnist': [500, 1000, 2000, 5000, 10000, 20000],
-    'fashion_mnist': [500, 1000, 2000, 5000, 10000, 20000],
-    'synthetic_clustered': [1000, 2000, 5000, 10000, 20000, 40000, 80000],
-    'synthetic_uniform': [1000, 2000, 5000, 10000, 20000, 40000, 80000],
-    'sift1m': [5000, 10000, 20000, 40000, 80000, 120000, 200000],
-    'glove': [5000, 10000, 20000, 40000, 80000, 120000, 200000],
+    # mnist/fashion_mnist: 0.99 at search_k~5000-10000
+    'mnist': [1000, 2000, 5000, 10000, 20000, 40000],
+    'fashion_mnist': [1000, 2000, 5000, 10000, 20000, 40000],
+    # synthetic_clustered: 0.99 at search_k~5000
+    'synthetic_clustered': [1000, 2000, 5000, 10000, 20000, 40000],
+    # synthetic_uniform: Never reaches 0.99 (max 0.96 at 80000)
+    'synthetic_uniform': [10000, 20000, 40000, 80000, 160000, 320000],
+    # sift1m: 0.99 at search_k~40000
+    'sift1m': [10000, 20000, 40000, 80000, 120000, 200000],
+    'glove': [10000, 20000, 40000, 80000, 120000, 200000],
 }
 
 
@@ -294,8 +310,9 @@ if __name__ == '__main__':
                         help='Directory to save results')
     parser.add_argument('--n_queries', type=int, default=1000,
                         help='Number of queries per run')
-    parser.add_argument('--dataset', type=str, default=None, choices=DATASETS,
-                        help='Run a single dataset from the paper suite')
+    parser.add_argument('--datasets', type=str, nargs='+', default=None,
+                        choices=DATASETS, metavar='DATASET',
+                        help='Datasets to run (default: all)')
     parser.set_defaults(log_per_query=True)
     parser.add_argument('--no_log_per_query', dest='log_per_query', action='store_false',
                         help='Disable per-query logging')
@@ -307,14 +324,10 @@ if __name__ == '__main__':
     if args.seeds:
         seeds = [int(s.strip()) for s in args.seeds.split(',') if s.strip()]
 
-    datasets = None
-    if args.dataset:
-        datasets = [args.dataset]
-
     run_paper_suite(
         output_dir=args.output_dir,
         n_queries=args.n_queries,
         log_per_query=args.log_per_query,
         seeds=seeds,
-        datasets=datasets
+        datasets=args.datasets
     )
