@@ -101,7 +101,7 @@ ANNOY_SEARCHK_SWEEPS = {
     'mnist': [2500, 5000, 7500, 10000, 12500],
     # ongoing
     'fashion_mnist': [1000, 2000, 5000, 10000, 20000, 40000],
-    # ongoing
+    # done
     'synthetic_clustered': [1250, 2500, 3750, 5000, 6250],
     # done
     'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
