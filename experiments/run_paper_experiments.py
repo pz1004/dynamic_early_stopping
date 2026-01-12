@@ -69,8 +69,8 @@ DES_KNN_PCA_TAUS = {
 DES_KNN_GUARANTEE_TAUS = {
     # done
     'mnist': [10, 20, 30, 40, 50],
-    # ongoing
-    'fashion_mnist': [1, 5, 10, 20, 50, 100, 200],
+    # done
+    'fashion_mnist': [15, 20, 25, 30, 35],
     # done
     'synthetic_clustered': [5, 15, 20, 25, 30],
     # done
@@ -92,8 +92,8 @@ HNSW_EF_SWEEPS = {
     'synthetic_uniform': [2000, 2500, 3000, 3500, 4000],
     # done
     'sift1m': [50, 100, 150, 200, 250],
-    #ongoing
-    'glove': [500, 600, 700, 800, 900, 1000],
+    #ongoing-1
+    'glove': [2000, 3000, 4000],
 }
 
 ANNOY_SEARCHK_SWEEPS = {
@@ -107,8 +107,8 @@ ANNOY_SEARCHK_SWEEPS = {
     'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
     # done
     'sift1m': [20000, 30000, 40000, 50000, 60000],
-    #ongoing
-    'glove': [600000, 700000, 800000, 900000, 1000000],
+    # done
+    'glove': [400000, 500000, 600000, 700000, 800000],
 }
 
 
