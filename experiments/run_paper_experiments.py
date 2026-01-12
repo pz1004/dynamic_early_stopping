@@ -69,8 +69,9 @@ DES_KNN_PCA_TAUS = {
 DES_KNN_GUARANTEE_TAUS = {
     # done
     'mnist': [10, 20, 30, 40, 50],
+    # ongoing
     'fashion_mnist': [1, 5, 10, 20, 50, 100, 200],
-    # synthetic_clustered/uniform: 0.99 at tau~20
+    # done
     'synthetic_clustered': [5, 15, 20, 25, 30],
     # done
     'synthetic_uniform': [5, 10, 15, 20, 25],
@@ -85,8 +86,8 @@ HNSW_EF_SWEEPS = {
     'mnist': [8, 16, 32, 64, 128],
     # done
     'fashion_mnist': [8, 16, 32, 64, 128],
-    # synthetic_clustered: 0.99 at ef~100
-    'synthetic_clustered': [20, 50, 100, 200, 400, 800],
+    # done
+    'synthetic_clustered': [50, 100, 150, 200, 250],
     # done
     'synthetic_uniform': [2000, 2500, 3000, 3500, 4000],
     #ongoing
@@ -98,9 +99,10 @@ HNSW_EF_SWEEPS = {
 ANNOY_SEARCHK_SWEEPS = {
     # done
     'mnist': [2500, 5000, 7500, 10000, 12500],
+    # ongoing
     'fashion_mnist': [1000, 2000, 5000, 10000, 20000, 40000],
-    # synthetic_clustered: 0.99 at search_k~5000
-    'synthetic_clustered': [2500, 5000, 7500, 10000, 12500],
+    # ongoing
+    'synthetic_clustered': [1250, 2500, 3750, 5000, 6250],
     # done
     'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
     #ongoing
