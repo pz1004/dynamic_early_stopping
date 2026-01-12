@@ -60,8 +60,8 @@ DES_KNN_PCA_TAUS = {
     'synthetic_clustered': [250, 500, 750, 1000, 1250],
     # done
     'synthetic_uniform': [5, 10, 15, 20, 25],
-    #ongoing
-    'sift1m': [100, 200, 400, 800, 1600, 3200, 6400],
+    #ongoing-2
+    'sift1m': [50, 100, 150, 200, 250],
     # done
     'glove': [3, 4, 5, 6, 7],
 }
@@ -75,8 +75,8 @@ DES_KNN_GUARANTEE_TAUS = {
     'synthetic_clustered': [5, 15, 20, 25, 30],
     # done
     'synthetic_uniform': [5, 10, 15, 20, 25],
-    #ongoing
-    'sift1m': [1, 5, 10, 50, 100, 500, 1000],
+    #ongoing-2
+    'sift1m': [10, 20, 30, 40, 50],
     # done
     'glove': [5, 10, 15, 20, 25],
 }
@@ -90,7 +90,7 @@ HNSW_EF_SWEEPS = {
     'synthetic_clustered': [50, 100, 150, 200, 250],
     # done
     'synthetic_uniform': [2000, 2500, 3000, 3500, 4000],
-    #ongoing
+    # done
     'sift1m': [50, 100, 150, 200, 250],
     #ongoing
     'glove': [500, 600, 700, 800, 900, 1000],
@@ -105,7 +105,7 @@ ANNOY_SEARCHK_SWEEPS = {
     'synthetic_clustered': [1250, 2500, 3750, 5000, 6250],
     # done
     'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
-    #ongoing
+    # done
     'sift1m': [20000, 30000, 40000, 50000, 60000],
     #ongoing
     'glove': [600000, 700000, 800000, 900000, 1000000],
