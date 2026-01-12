@@ -52,8 +52,8 @@ DATASET_PARAMS = {
 }
 
 DES_KNN_PCA_TAUS = {
-    #ongoing
-    'mnist': [3500, 4000],
+    # done
+    'mnist': [2000, 2500, 3000, 3500, 4000],
     # done
     'fashion_mnist': [5000, 7500, 10000, 12500, 15000],
     # done
@@ -91,7 +91,7 @@ HNSW_EF_SWEEPS = {
     # done
     'synthetic_uniform': [2000, 2500, 3000, 3500, 4000],
     #ongoing
-    'sift1m': [50, 100, 200, 400, 600, 800, 1200],
+    'sift1m': [50, 100, 150, 200, 250],
     #ongoing
     'glove': [500, 600, 700, 800, 900, 1000],
 }
@@ -106,7 +106,7 @@ ANNOY_SEARCHK_SWEEPS = {
     # done
     'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
     #ongoing
-    'sift1m': [10000, 20000, 40000, 80000, 120000, 200000],
+    'sift1m': [20000, 30000, 40000, 50000, 60000],
     #ongoing
     'glove': [600000, 700000, 800000, 900000, 1000000],
 }
