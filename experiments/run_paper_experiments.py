@@ -99,8 +99,8 @@ HNSW_EF_SWEEPS = {
 ANNOY_SEARCHK_SWEEPS = {
     # done
     'mnist': [2500, 5000, 7500, 10000, 12500],
-    # ongoing
-    'fashion_mnist': [1000, 2000, 5000, 10000, 20000, 40000],
+    # done
+    'fashion_mnist': [2500, 5000, 7500, 10000, 12500],
     # done
     'synthetic_clustered': [1250, 2500, 3750, 5000, 6250],
     # done
