@@ -52,7 +52,7 @@ DATASET_PARAMS = {
 }
 
 DES_KNN_PCA_TAUS = {
-    # mnist/fashion_mnist: All taus achieve ~1.0 recall (easy dataset)
+    #ongoing
     'mnist': [3500, 4000],
     # done
     'fashion_mnist': [5000, 7500, 10000, 12500, 15000],
@@ -60,7 +60,7 @@ DES_KNN_PCA_TAUS = {
     'synthetic_clustered': [250, 500, 750, 1000, 1250],
     # done
     'synthetic_uniform': [5, 10, 15, 20, 25],
-    # sift1m: All taus achieve 0.9994 recall
+    #ongoing
     'sift1m': [100, 200, 400, 800, 1600, 3200, 6400],
     # done
     'glove': [3, 4, 5, 6, 7],
@@ -74,7 +74,7 @@ DES_KNN_GUARANTEE_TAUS = {
     'synthetic_clustered': [5, 15, 20, 25, 30],
     # done
     'synthetic_uniform': [5, 10, 15, 20, 25],
-    # sift1m: Does NOT achieve 0.99 (max ~0.4), include for completeness
+    #ongoing
     'sift1m': [1, 5, 10, 50, 100, 500, 1000],
     # done
     'glove': [5, 10, 15, 20, 25],
@@ -89,7 +89,7 @@ HNSW_EF_SWEEPS = {
     'synthetic_clustered': [20, 50, 100, 200, 400, 800],
     # done
     'synthetic_uniform': [2000, 2500, 3000, 3500, 4000],
-    # sift1m: 0.99 at ef~200
+    #ongoing
     'sift1m': [50, 100, 200, 400, 600, 800, 1200],
     #ongoing
     'glove': [500, 600, 700, 800, 900, 1000],
@@ -103,7 +103,7 @@ ANNOY_SEARCHK_SWEEPS = {
     'synthetic_clustered': [2500, 5000, 7500, 10000, 12500],
     # done
     'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
-    # sift1m: 0.99 at search_k~40000
+    #ongoing
     'sift1m': [10000, 20000, 40000, 80000, 120000, 200000],
     #ongoing
     'glove': [600000, 700000, 800000, 900000, 1000000],
