@@ -63,7 +63,7 @@ DES_KNN_PCA_TAUS = {
     'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
     # sift1m: All taus achieve 0.9994 recall
     'sift1m': [100, 200, 400, 800, 1600, 3200, 6400],
-    'glove': [100, 200, 400, 800, 1600, 3200, 6400],
+    'glove': [10, 20, 30, 40, 50],
 }
 
 DES_KNN_GUARANTEE_TAUS = {
@@ -75,7 +75,7 @@ DES_KNN_GUARANTEE_TAUS = {
     'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
     # sift1m: Does NOT achieve 0.99 (max ~0.4), include for completeness
     'sift1m': [1, 5, 10, 50, 100, 500, 1000],
-    'glove': [1, 5, 10, 50, 100, 500, 1000],
+    'glove': [10, 20, 30, 40, 50],
 }
 
 HNSW_EF_SWEEPS = {
