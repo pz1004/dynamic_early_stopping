@@ -296,7 +296,8 @@ def run_paper_suite(
                     all_results['results'][dataset][method][k].append(entry)
                     print(
                         f"  -> Recall: {aggregate['recall_mean']:.4f}, "
-                        f"Time: {aggregate['query_time_ms_mean']:.2f} ms"
+                        f"Time: {aggregate['query_time_ms_mean']:.2f} ms, "
+                        f"Speedup: {aggregate['speedup_mean']:.2f}x"
                     )
 
     # Save
