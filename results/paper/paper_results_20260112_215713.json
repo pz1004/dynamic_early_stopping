@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "n_queries": 1000,
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "k_values": [
+      10
+    ],
+    "datasets": [
+      "synthetic_uniform"
+    ],
+    "methods": [
+      "hnsw"
+    ]
+  },
+  "results": {
+    "synthetic_uniform": {
+      "hnsw": {
+        "10": []
+      }
+    }
+  }
+}

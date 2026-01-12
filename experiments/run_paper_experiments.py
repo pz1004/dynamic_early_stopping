@@ -59,8 +59,8 @@ DES_KNN_PCA_TAUS = {
     'fashion_mnist': [100, 200, 400, 800, 1600, 3200, 6400],
     # done
     'synthetic_clustered': [250, 500, 750, 1000, 1250],
-    # synthetic_uniform: 0.99 at tau~10 (hardest for PCA sorter)
-    'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
+    # done
+    'synthetic_uniform': [5, 10, 15, 20, 25],
     # sift1m: All taus achieve 0.9994 recall
     'sift1m': [100, 200, 400, 800, 1600, 3200, 6400],
     'glove': [5, 6, 7, 8, 9, 10],
@@ -72,7 +72,8 @@ DES_KNN_GUARANTEE_TAUS = {
     'fashion_mnist': [1, 5, 10, 20, 50, 100, 200],
     # synthetic_clustered/uniform: 0.99 at tau~20
     'synthetic_clustered': [2, 5, 10, 20, 50, 100, 200],
-    'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
+    # done
+    'synthetic_uniform': [5, 10, 15, 20, 25],
     # sift1m: Does NOT achieve 0.99 (max ~0.4), include for completeness
     'sift1m': [1, 5, 10, 50, 100, 500, 1000],
     'glove': [5, 10, 15, 20, 25],
@@ -84,8 +85,8 @@ HNSW_EF_SWEEPS = {
     'fashion_mnist': [8, 16, 32, 64, 128],
     # synthetic_clustered: 0.99 at ef~100
     'synthetic_clustered': [20, 50, 100, 200, 400, 800],
-    # synthetic_uniform: Never reaches 0.99 (max 0.93 at ef=800)
-    'synthetic_uniform': [100, 200, 400, 800, 1600, 3200],
+    # done
+    'synthetic_uniform': [2000, 2500, 3000, 3500, 4000],
     # sift1m: 0.99 at ef~200
     'sift1m': [50, 100, 200, 400, 600, 800, 1200],
     'glove': [50, 100, 200, 400, 600, 800, 1200],
@@ -98,7 +99,7 @@ ANNOY_SEARCHK_SWEEPS = {
     # synthetic_clustered: 0.99 at search_k~5000
     'synthetic_clustered': [1000, 2000, 5000, 10000, 20000, 40000],
     # synthetic_uniform: Never reaches 0.99 (max 0.96 at 80000)
-    'synthetic_uniform': [10000, 20000, 40000, 80000, 160000, 320000],
+    'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
     # sift1m: 0.99 at search_k~40000
     'sift1m': [10000, 20000, 40000, 80000, 120000, 200000],
     'glove': [80000, 120000, 200000],
