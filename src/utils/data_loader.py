@@ -445,7 +445,8 @@ class DataLoader:
         self,
         dim: int = 300,
         max_words: int = 400000,
-        allow_synthetic: bool = True
+        allow_synthetic: bool = True,
+        auto_download: bool = True
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Load GloVe word vectors.
@@ -458,15 +459,42 @@ class DataLoader:
             Maximum number of words to load.
         allow_synthetic : bool
             Whether to fall back to synthetic data if the file is missing.
+        auto_download : bool
+            Whether to download GloVe if missing (requires network).
         """
         glove_path = self.data_dir / f'glove.6B.{dim}d.txt'
+        zip_path = self.data_dir / 'glove.6B.zip'
 
         if not glove_path.exists():
-            if not allow_synthetic:
-                raise FileNotFoundError(f"GloVe file not found at {glove_path}")
-            print(f"Warning: GloVe file not found at {glove_path}")
-            print("Using synthetic data.")
-            return self._load_synthetic_uniform(n=max_words, d=dim)
+            if auto_download:
+                if not zip_path.exists():
+                    glove_url = "https://nlp.stanford.edu/data/glove.6B.zip"
+                    print("Attempting to download GloVe 6B (~822MB)...")
+                    downloaded = self._download_file(glove_url, zip_path)
+                else:
+                    downloaded = True
+
+                if downloaded:
+                    try:
+                        import zipfile
+
+                        member_name = glove_path.name
+                        with zipfile.ZipFile(zip_path, 'r') as zf:
+                            if member_name not in zf.namelist():
+                                raise FileNotFoundError(
+                                    f"{member_name} not found inside {zip_path}"
+                                )
+                            print(f"Extracting {member_name}...")
+                            zf.extract(member_name, path=self.data_dir)
+                    except Exception as e:
+                        print(f"Warning: Could not extract GloVe vectors: {e}")
+
+            if not glove_path.exists():
+                if not allow_synthetic:
+                    raise FileNotFoundError(f"GloVe file not found at {glove_path}")
+                print(f"Warning: GloVe file not found at {glove_path}")
+                print("Using synthetic data.")
+                return self._load_synthetic_uniform(n=max_words, d=dim)
 
         vectors = []
         words = []
@@ -716,6 +744,13 @@ class DataLoader:
                 'dims': 960,
                 'n_classes': 0,
                 'description': 'GIST scene descriptors (TEXMEX)'
+            },
+            'glove': {
+                'n_train': 360000,
+                'n_test': 40000,
+                'dims': 300,
+                'n_classes': 0,
+                'description': 'GloVe 6B word embeddings'
             }
         }
         return info.get(dataset_name, {})

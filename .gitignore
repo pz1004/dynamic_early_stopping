@@ -4,3 +4,4 @@ src/__pycache__/
 tests/__pycache__/
 data/
 des_knn.egg-info/
+figures/

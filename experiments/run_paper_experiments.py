@@ -201,25 +201,27 @@ def run_paper_suite(
     output_dir='results/paper',
     n_queries=1000,
     log_per_query=True,
-    seeds=None
+    seeds=None,
+    datasets=None
 ):
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     seeds = SEEDS if seeds is None else seeds
+    datasets = DATASETS if datasets is None else datasets
 
     all_results = {
         'meta': {
             'n_queries': n_queries,
             'seeds': seeds,
             'k_values': K_VALUES,
-            'datasets': DATASETS,
+            'datasets': datasets,
             'methods': METHODS,
         },
         'results': {}
     }
     
-    for dataset in DATASETS:
+    for dataset in datasets:
         dataset_params = DATASET_PARAMS.get(dataset, {})
         # Skip if dataset not found (simple check)
         try:
@@ -292,6 +294,8 @@ if __name__ == '__main__':
                         help='Directory to save results')
     parser.add_argument('--n_queries', type=int, default=1000,
                         help='Number of queries per run')
+    parser.add_argument('--dataset', type=str, default=None, choices=DATASETS,
+                        help='Run a single dataset from the paper suite')
     parser.set_defaults(log_per_query=True)
     parser.add_argument('--no_log_per_query', dest='log_per_query', action='store_false',
                         help='Disable per-query logging')
@@ -303,9 +307,14 @@ if __name__ == '__main__':
     if args.seeds:
         seeds = [int(s.strip()) for s in args.seeds.split(',') if s.strip()]
 
+    datasets = None
+    if args.dataset:
+        datasets = [args.dataset]
+
     run_paper_suite(
         output_dir=args.output_dir,
         n_queries=args.n_queries,
         log_per_query=args.log_per_query,
-        seeds=seeds
+        seeds=seeds,
+        datasets=datasets
     )
