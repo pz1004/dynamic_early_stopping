@@ -55,7 +55,7 @@ DATASET_PARAMS = {
 # Middle value targets ~0.99 recall based on empirical analysis
 DES_KNN_PCA_TAUS = {
     # mnist/fashion_mnist: All taus achieve ~1.0 recall (easy dataset)
-    'mnist': [12800, 25600, 51200],
+    'mnist': [300, 600, 1200, 2400, 4800],
     'fashion_mnist': [100, 200, 400, 800, 1600, 3200, 6400],
     # done
     'synthetic_clustered': [250, 500, 750, 1000, 1250],
@@ -79,9 +79,9 @@ DES_KNN_GUARANTEE_TAUS = {
 }
 
 HNSW_EF_SWEEPS = {
-    # mnist/fashion_mnist: 0.99 at ef~32
-    'mnist': [8, 16, 32, 64, 128, 256],
-    'fashion_mnist': [8, 16, 32, 64, 128, 256],
+    # done
+    'mnist': [8, 16, 32, 64, 128],
+    'fashion_mnist': [8, 16, 32, 64, 128],
     # synthetic_clustered: 0.99 at ef~100
     'synthetic_clustered': [20, 50, 100, 200, 400, 800],
     # synthetic_uniform: Never reaches 0.99 (max 0.93 at ef=800)
@@ -93,7 +93,7 @@ HNSW_EF_SWEEPS = {
 
 ANNOY_SEARCHK_SWEEPS = {
     # mnist/fashion_mnist: 0.99 at search_k~5000-10000
-    'mnist': [1000, 2000, 5000, 10000, 20000, 40000],
+    'mnist': [2500, 5000, 7500, 10000, 12500],
     'fashion_mnist': [1000, 2000, 5000, 10000, 20000, 40000],
     # synthetic_clustered: 0.99 at search_k~5000
     'synthetic_clustered': [1000, 2000, 5000, 10000, 20000, 40000],
