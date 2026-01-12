@@ -5,13 +5,11 @@ scikit-learn>=1.0.0
 
 # Data handling
 pandas>=1.3.0
+h5py>=3.0.0
 
 # Visualization
 matplotlib>=3.4.0
 seaborn>=0.11.0
-
-# Configuration
-pyyaml>=6.0
 
 # Progress bars
 tqdm>=4.62.0
@@ -20,13 +18,16 @@ tqdm>=4.62.0
 torch>=1.9.0
 torchvision>=0.10.0
 
-# Optional: ANN libraries (install if available)
-# annoy>=1.17.0
-# hnswlib>=0.6.0
-# faiss-cpu>=1.7.0
+# ANN baseline libraries
+annoy>=1.17.0
+hnswlib>=0.6.0
+faiss-cpu>=1.7.0
 
 # Testing
 pytest>=6.0.0
 
 # Parallel processing
 joblib>=1.0.0
+
+# Build/packaging
+setuptools>=45.0.0

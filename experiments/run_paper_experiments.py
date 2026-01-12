@@ -63,7 +63,7 @@ DES_KNN_PCA_TAUS = {
     'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
     # sift1m: All taus achieve 0.9994 recall
     'sift1m': [100, 200, 400, 800, 1600, 3200, 6400],
-    'glove': [10, 20, 30, 40, 50],
+    'glove': [5, 6, 7, 8, 9, 10],
 }
 
 DES_KNN_GUARANTEE_TAUS = {
@@ -75,7 +75,7 @@ DES_KNN_GUARANTEE_TAUS = {
     'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
     # sift1m: Does NOT achieve 0.99 (max ~0.4), include for completeness
     'sift1m': [1, 5, 10, 50, 100, 500, 1000],
-    'glove': [10, 20, 30, 40, 50],
+    'glove': [5, 10, 15, 20, 25],
 }
 
 HNSW_EF_SWEEPS = {
@@ -218,13 +218,15 @@ def run_paper_suite(
     n_queries=1000,
     log_per_query=True,
     seeds=None,
-    datasets=None
+    datasets=None,
+    methods=None
 ):
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     seeds = SEEDS if seeds is None else seeds
     datasets = DATASETS if datasets is None else datasets
+    methods = METHODS if methods is None else methods
 
     all_results = {
         'meta': {
@@ -232,11 +234,11 @@ def run_paper_suite(
             'seeds': seeds,
             'k_values': K_VALUES,
             'datasets': datasets,
-            'methods': METHODS,
+            'methods': methods,
         },
         'results': {}
     }
-    
+
     for dataset in datasets:
         dataset_params = DATASET_PARAMS.get(dataset, {})
         # Skip if dataset not found (simple check)
@@ -248,8 +250,8 @@ def run_paper_suite(
             continue
 
         all_results['results'][dataset] = {}
-        
-        for method in METHODS:
+
+        for method in methods:
             all_results['results'][dataset][method] = {}
             configs = get_method_configs(method, dataset)
             
@@ -313,6 +315,9 @@ if __name__ == '__main__':
     parser.add_argument('--datasets', type=str, nargs='+', default=None,
                         choices=DATASETS, metavar='DATASET',
                         help='Datasets to run (default: all)')
+    parser.add_argument('--methods', type=str, nargs='+', default=None,
+                        choices=METHODS, metavar='METHOD',
+                        help='Methods to run (default: all)')
     parser.set_defaults(log_per_query=True)
     parser.add_argument('--no_log_per_query', dest='log_per_query', action='store_false',
                         help='Disable per-query logging')
@@ -329,5 +334,6 @@ if __name__ == '__main__':
         n_queries=args.n_queries,
         log_per_query=args.log_per_query,
         seeds=seeds,
-        datasets=args.datasets
+        datasets=args.datasets,
+        methods=args.methods
     )
