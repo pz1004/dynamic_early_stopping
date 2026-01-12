@@ -99,7 +99,7 @@ ANNOY_SEARCHK_SWEEPS = {
     'fashion_mnist': [1000, 2000, 5000, 10000, 20000, 40000],
     # synthetic_clustered: 0.99 at search_k~5000
     'synthetic_clustered': [1000, 2000, 5000, 10000, 20000, 40000],
-    # synthetic_uniform: Never reaches 0.99 (max 0.96 at 80000)
+    # done
     'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
     # sift1m: 0.99 at search_k~40000
     'sift1m': [10000, 20000, 40000, 80000, 120000, 200000],
