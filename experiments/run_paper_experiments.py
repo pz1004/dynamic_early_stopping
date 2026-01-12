@@ -53,7 +53,8 @@ DATASET_PARAMS = {
 
 DES_KNN_PCA_TAUS = {
     # mnist/fashion_mnist: All taus achieve ~1.0 recall (easy dataset)
-    'mnist': [1000, 1500, 2000, 2500, 3000],
+    'mnist': [3500, 4000],
+    # done
     'fashion_mnist': [5000, 7500, 10000, 12500, 15000],
     # done
     'synthetic_clustered': [250, 500, 750, 1000, 1250],
