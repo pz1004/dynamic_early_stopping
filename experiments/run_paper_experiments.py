@@ -51,8 +51,6 @@ DATASET_PARAMS = {
     },
 }
 
-# Dense sweeps for Pareto curves (dataset-specific where needed)
-# Middle value targets ~0.99 recall based on empirical analysis
 DES_KNN_PCA_TAUS = {
     # mnist/fashion_mnist: All taus achieve ~1.0 recall (easy dataset)
     'mnist': [1000, 1500, 2000, 2500, 3000],
