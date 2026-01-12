@@ -55,7 +55,7 @@ DATASET_PARAMS = {
 # Middle value targets ~0.99 recall based on empirical analysis
 DES_KNN_PCA_TAUS = {
     # mnist/fashion_mnist: All taus achieve ~1.0 recall (easy dataset)
-    'mnist': [100, 200, 400, 800, 1600, 3200, 6400],
+    'mnist': [12800, 25600, 51200],
     'fashion_mnist': [100, 200, 400, 800, 1600, 3200, 6400],
     # synthetic_clustered: 0.99 at tau~500
     'synthetic_clustered': [50, 100, 200, 500, 1000, 2000, 4000],
@@ -68,7 +68,7 @@ DES_KNN_PCA_TAUS = {
 
 DES_KNN_GUARANTEE_TAUS = {
     # mnist/fashion_mnist: 0.99 at tau~20
-    'mnist': [1, 5, 10, 20, 50, 100, 200],
+    'mnist': [10, 20, 30, 40, 50],
     'fashion_mnist': [1, 5, 10, 20, 50, 100, 200],
     # synthetic_clustered/uniform: 0.99 at tau~20
     'synthetic_clustered': [2, 5, 10, 20, 50, 100, 200],
