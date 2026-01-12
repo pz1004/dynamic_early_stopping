@@ -57,8 +57,8 @@ DES_KNN_PCA_TAUS = {
     # mnist/fashion_mnist: All taus achieve ~1.0 recall (easy dataset)
     'mnist': [12800, 25600, 51200],
     'fashion_mnist': [100, 200, 400, 800, 1600, 3200, 6400],
-    # synthetic_clustered: 0.99 at tau~500
-    'synthetic_clustered': [50, 100, 200, 500, 1000, 2000, 4000],
+    # done
+    'synthetic_clustered': [250, 500, 750, 1000, 1250],
     # synthetic_uniform: 0.99 at tau~10 (hardest for PCA sorter)
     'synthetic_uniform': [2, 5, 10, 20, 50, 100, 200],
     # sift1m: All taus achieve 0.9994 recall
@@ -101,7 +101,7 @@ ANNOY_SEARCHK_SWEEPS = {
     'synthetic_uniform': [10000, 20000, 40000, 80000, 160000, 320000],
     # sift1m: 0.99 at search_k~40000
     'sift1m': [10000, 20000, 40000, 80000, 120000, 200000],
-    'glove': [10000, 20000, 40000, 80000, 120000, 200000],
+    'glove': [80000, 120000, 200000],
 }
 
 
