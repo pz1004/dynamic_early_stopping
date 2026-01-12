@@ -62,6 +62,7 @@ DES_KNN_PCA_TAUS = {
     'synthetic_uniform': [5, 10, 15, 20, 25],
     # sift1m: All taus achieve 0.9994 recall
     'sift1m': [100, 200, 400, 800, 1600, 3200, 6400],
+    # done
     'glove': [3, 4, 5, 6, 7],
 }
 
@@ -90,6 +91,7 @@ HNSW_EF_SWEEPS = {
     'synthetic_uniform': [2000, 2500, 3000, 3500, 4000],
     # sift1m: 0.99 at ef~200
     'sift1m': [50, 100, 200, 400, 600, 800, 1200],
+    #ongoing
     'glove': [500, 600, 700, 800, 900, 1000],
 }
 
@@ -103,7 +105,8 @@ ANNOY_SEARCHK_SWEEPS = {
     'synthetic_uniform': [50000, 75000, 100000, 125000, 150000],
     # sift1m: 0.99 at search_k~40000
     'sift1m': [10000, 20000, 40000, 80000, 120000, 200000],
-    'glove': [300000, 400000, 500000],
+    #ongoing
+    'glove': [600000, 700000, 800000, 900000, 1000000],
 }
 
 
