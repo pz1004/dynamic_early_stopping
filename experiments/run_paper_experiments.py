@@ -92,8 +92,8 @@ HNSW_EF_SWEEPS = {
     'synthetic_uniform': [2000, 2500, 3000, 3500, 4000],
     # done
     'sift1m': [50, 100, 150, 200, 250],
-    #ongoing-1
-    'glove': [2000, 3000, 4000],
+    # done
+    'glove': [2000, 3000, 4000, 5000, 6000],
 }
 
 ANNOY_SEARCHK_SWEEPS = {
