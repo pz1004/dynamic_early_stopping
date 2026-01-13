@@ -60,7 +60,7 @@ DES_KNN_PCA_TAUS = {
     'synthetic_clustered': [250, 500, 750, 1000, 1250],
     # done
     'synthetic_uniform': [5, 10, 15, 20, 25],
-    #ongoing-2
+    # done
     'sift1m': [50, 100, 150, 200, 250],
     # done
     'glove': [3, 4, 5, 6, 7],
@@ -75,8 +75,8 @@ DES_KNN_GUARANTEE_TAUS = {
     'synthetic_clustered': [5, 15, 20, 25, 30],
     # done
     'synthetic_uniform': [5, 10, 15, 20, 25],
-    #ongoing-2
-    'sift1m': [10, 20, 30, 40, 50],
+    # done
+    'sift1m': [5, 10, 15, 20, 25],
     # done
     'glove': [5, 10, 15, 20, 25],
 }
